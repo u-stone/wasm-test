@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Emscripten 多线程测试</title>
+</head>
+<body>
+    <h1>Emscripten 多线程测试</h1>
+    <script>
+        // 检查浏览器是否支持 SharedArrayBuffer
+        if (typeof SharedArrayBuffer === 'undefined') {
+            alert('您的浏览器不支持 SharedArrayBuffer，多线程可能无法正常工作。');
+        }
+
+        // 加载 WASM 模块
+        Module = {
+            onRuntimeInitialized: function() {
+                console.log('WASM 模块加载完成!');
+                // 调用 C++ 函数，启动 4 个线程
+                Module.ccall('run_threads', null, ['number'], [4]);
+            }
+        };
+    </script>
+    <script src="main.js"></script>
+</body>
+</html>
