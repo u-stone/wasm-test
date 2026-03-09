@@ -85,11 +85,35 @@ python .\server.py
 - 关闭缓存后刷新（DevTools Network 勾选 Disable cache）。
 - 确认加载的是你期望模式（URL 参数 + 页面显示的 Debug mode）。
 
+### dwarf 模式能看到 C++ 源码但断点打不上（01-pthreads 常见）
+- 典型现象：`debug=dwarf` 且 `-O1 -g` 时，Sources 里能看到 `main.cc`，但某些行无法下断点或断点不命中。
+- 根因：优化会改变源码行与最终 Wasm 指令的一一对应关系；浏览器只能在可停靠指令上绑定断点。
+- 解决建议：
+  - 需要高稳定断点时使用 `-O0 -g`（可单独定义为 debug 专用模式）。
+  - 折中可尝试 `-Og -g` 或加 `-fno-inline`，减少优化对行映射的破坏。
+  - 对比时保留 `release`/`dwarf` 双模式，避免把调试构建误当作性能结论。
+
 ### worker 内断点难以命中
 - 在 `task-worker.js` 里先加 `debugger;`（临时）。
 - 确保 worker 脚本 URL 带了正确 `debug` 参数。
 
-## 8. 建议调试流程
+### pthread 线程日志只看到 run_complete，看不到 thread_done
+- 典型现象：`run_threads` 的线程内部日志在页面/compare 面板看不到，只看到函数末尾 `run_complete`。
+- 根因：线程代码运行在 pthread worker，上下文与主页面 `window.console` 不同；主页面的 `console.log` hook 不能自动捕获 worker console。
+- 修复策略（本项目已落地）：
+  - 在线程内将日志代理回主线程，再由主线程 `console.log` 输出。
+  - 实现位置：`demos/01-pthreads/src/main.cc` 中 `logOnMainThread(...)`。
+  - 结果：`thread_done` 可被页面日志系统与 compare 面板统一采集。
+
+## 8. Worker DevTools 上下文切换（看 worker console）
+1. 打开 DevTools（F12）。
+2. 在 DevTools 顶部的执行上下文下拉框（通常显示 `top`）切到目标 worker。
+3. 切到 `Console` 面板，此时输出即对应该 worker。
+4. 若没看到 worker，先在 `Sources` 面板的 `Threads/Workers` 分组中选择目标 worker。
+5. 选择 worker 后再回到 `Console`，查看对应上下文输出。
+6. 对 pthreads 场景，建议同时观察主线程 console（汇总日志）与 worker console（线程局部细节）。
+
+## 9. 建议调试流程
 1. `release` 复现行为。
 2. 切 `dwarf` 看 C++ 变量与流程。
 3. 切 `sourcemap` 看映射与 glue 层。
