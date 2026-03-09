@@ -4,6 +4,25 @@
 本指南面向使用者，帮助你快速验证本项目中的 4 种并发/多线程方案，并在 UI 上观察差异。
 
 ## 2. 启动步骤
+### 2.0 Python 虚拟环境（可选但推荐）
+本项目当前的 Python 脚本只依赖标准库，不装第三方包也能运行；但建议使用 `.venv` 统一团队环境。
+
+Windows PowerShell:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+macOS/Linux (bash/zsh):
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+说明：`requirements.txt` 当前为空依赖声明（仅注释），表示无第三方 Python 包。
+
 1. 编译所有模式产物（包含 release / dwarf / sourcemap）：
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode all
@@ -15,6 +34,18 @@ python .\server.py
 3. 打开首页：
 - 隔离模式（带 COOP/COEP）: `http://localhost:8000/isolated/index.html`
 - 普通模式（不带 COOP/COEP）: `http://localhost:8000/plain/index.html`
+
+### 2.1 外部工具依赖
+除 Python 外，本项目还依赖以下外部工具：
+
+1. `Emscripten SDK (emsdk)`：用于 `em++` 编译 C++ -> Wasm。
+2. 可用浏览器：建议最新版 Chrome/Edge（用于 Wasm 与 DevTools 调试）。
+
+可通过以下命令快速检查：
+```powershell
+em++ --version
+python --version
+```
 
 ## 3. UI 入口说明
 在 `index.html` 顶部有两个按钮：

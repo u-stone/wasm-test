@@ -22,6 +22,36 @@
 - `output/<mode>/` 构建产物（release/dwarf/sourcemap）
 - `build.ps1` 单 demo 构建脚本
 
+## 1.1 Python 环境与依赖现状
+当前仓库中的 Python 仅用于本地服务脚本 `server.py`，且只依赖标准库：
+- `http.server`
+- `socketserver`
+- `os`
+- `urllib.parse`
+
+结论：
+1. 当前无第三方 Python 包依赖。
+2. 已提供 `requirements.txt` 作为环境声明（当前仅说明“无第三方依赖”）。
+3. `.venv` 推荐使用，但不是运行 `server.py` 的硬性前置条件。
+
+推荐初始化（Windows PowerShell）：
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+## 1.2 非 Python 外部依赖
+本项目核心构建依赖为 Emscripten：
+1. `em++`（来自 emsdk）
+2. 浏览器（Chrome/Edge）及 DevTools（用于 Wasm/JS 联合调试）
+
+可用以下命令快速检查环境：
+```powershell
+em++ --version
+python --version
+```
+
 ## 2. 推荐阅读顺序
 1. `server.py`
 - 理解 `/isolated/` 与 `/plain/` 双模式如何切换 COOP/COEP。

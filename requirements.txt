@@ -1,0 +1,2 @@
+# This project does not require third-party Python packages.
+# server.py only uses Python standard library modules.
