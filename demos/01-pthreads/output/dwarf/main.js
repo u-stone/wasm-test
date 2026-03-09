@@ -748,6 +748,9 @@ var tempI64;
 // end include: runtime_debug.js
 // === Body ===
 
+var ASM_CONSTS = {
+  5961: ($0) => { console.log(UTF8ToString($0)); }
+};
 function jsPrint(str) { console.log(UTF8ToString(str)); }
 
 
@@ -1537,6 +1540,83 @@ function jsPrint(str) { console.log(UTF8ToString(str)); }
       abort('');
     }
 
+  var readEmAsmArgsArray = [];
+  function readEmAsmArgs(sigPtr, buf) {
+      readEmAsmArgsArray.length = 0;
+      var ch;
+      // Most arguments are i32s, so shift the buffer pointer so it is a plain
+      // index into HEAP32.
+      buf >>= 2;
+      while (ch = HEAPU8[sigPtr++]) {
+        // Floats are always passed as doubles, and doubles and int64s take up 8
+        // bytes (two 32-bit slots) in memory, align reads to these:
+        buf += (ch != 105/*i*/) & buf;
+        readEmAsmArgsArray.push(
+          ch == 105/*i*/ ? HEAP32[buf] :
+         HEAPF64[buf++ >> 1]
+        );
+        ++buf;
+      }
+      return readEmAsmArgsArray;
+    }
+  
+  function withStackSave(f) {
+      var stack = stackSave();
+      var ret = f();
+      stackRestore(stack);
+      return ret;
+    }
+  
+  
+  /** @type{function(number, (number|boolean), ...(number|boolean))} */
+  function proxyToMainThread(index, sync) {
+      // Additional arguments are passed after those two, which are the actual
+      // function arguments.
+      // The serialization buffer contains the number of call params, and then
+      // all the args here.
+      // We also pass 'sync' to C separately, since C needs to look at it.
+      var numCallArgs = arguments.length - 2;
+      var outerArgs = arguments;
+      // Allocate a buffer, which will be copied by the C code.
+      return withStackSave(() => {
+        // First passed parameter specifies the number of arguments to the function.
+        // When BigInt support is enabled, we must handle types in a more complex
+        // way, detecting at runtime if a value is a BigInt or not (as we have no
+        // type info here). To do that, add a "prefix" before each value that
+        // indicates if it is a BigInt, which effectively doubles the number of
+        // values we serialize for proxying. TODO: pack this?
+        var serializedNumCallArgs = numCallArgs ;
+        var args = stackAlloc(serializedNumCallArgs * 8);
+        var b = args >> 3;
+        for (var i = 0; i < numCallArgs; i++) {
+          var arg = outerArgs[2 + i];
+          HEAPF64[b + i] = arg;
+        }
+        return __emscripten_run_in_main_runtime_thread_js(index, serializedNumCallArgs, args, sync);
+      });
+    }
+  function runMainThreadEmAsm(code, sigPtr, argbuf, sync) {
+      var args = readEmAsmArgs(sigPtr, argbuf);
+      if (ENVIRONMENT_IS_PTHREAD) {
+        // EM_ASM functions are variadic, receiving the actual arguments as a buffer
+        // in memory. the last parameter (argBuf) points to that data. We need to
+        // always un-variadify that, *before proxying*, as in the async case this
+        // is a stack allocation that LLVM made, which may go away before the main
+        // thread gets the message. For that reason we handle proxying *after* the
+        // call to readEmAsmArgs, and therefore we do that manually here instead
+        // of using __proxy. (And dor simplicity, do the same in the sync
+        // case as well, even though it's not strictly necessary, to keep the two
+        // code paths as similar as possible on both sides.)
+        // -1 - code is the encoding of a proxied EM_ASM, as a negative number
+        // (positive numbers are non-EM_ASM calls).
+        return proxyToMainThread.apply(null, [-1 - code, sync].concat(args));
+      }
+      return ASM_CONSTS[code].apply(null, args);
+    }
+  function _emscripten_asm_const_int_sync_on_main_thread(code, sigPtr, argbuf) {
+      return runMainThreadEmAsm(code, sigPtr, argbuf, 1);
+    }
+
   function warnOnce(text) {
       if (!warnOnce.shown) warnOnce.shown = {};
       if (!warnOnce.shown[text]) {
@@ -1573,41 +1653,6 @@ function jsPrint(str) { console.log(UTF8ToString(str)); }
       _emscripten_get_now = () => performance.timeOrigin + performance.now();
   ;
 
-  function withStackSave(f) {
-      var stack = stackSave();
-      var ret = f();
-      stackRestore(stack);
-      return ret;
-    }
-  
-  
-  /** @type{function(number, (number|boolean), ...(number|boolean))} */
-  function proxyToMainThread(index, sync) {
-      // Additional arguments are passed after those two, which are the actual
-      // function arguments.
-      // The serialization buffer contains the number of call params, and then
-      // all the args here.
-      // We also pass 'sync' to C separately, since C needs to look at it.
-      var numCallArgs = arguments.length - 2;
-      var outerArgs = arguments;
-      // Allocate a buffer, which will be copied by the C code.
-      return withStackSave(() => {
-        // First passed parameter specifies the number of arguments to the function.
-        // When BigInt support is enabled, we must handle types in a more complex
-        // way, detecting at runtime if a value is a BigInt or not (as we have no
-        // type info here). To do that, add a "prefix" before each value that
-        // indicates if it is a BigInt, which effectively doubles the number of
-        // values we serialize for proxying. TODO: pack this?
-        var serializedNumCallArgs = numCallArgs ;
-        var args = stackAlloc(serializedNumCallArgs * 8);
-        var b = args >> 3;
-        for (var i = 0; i < numCallArgs; i++) {
-          var arg = outerArgs[2 + i];
-          HEAPF64[b + i] = arg;
-        }
-        return __emscripten_run_in_main_runtime_thread_js(index, serializedNumCallArgs, args, sync);
-      });
-    }
   
   var emscripten_receive_on_main_thread_js_callArgs = [];
   
@@ -1619,7 +1664,8 @@ function jsPrint(str) { console.log(UTF8ToString(str)); }
       }
       // Proxied JS library funcs are encoded as positive values, and
       // EM_ASMs as negative values (see include_asm_consts)
-      var func = proxiedFunctionTable[index];
+      var isEmAsmConst = index < 0;
+      var func = !isEmAsmConst ? proxiedFunctionTable[index] : ASM_CONSTS[-index - 1];
       return func.apply(null, emscripten_receive_on_main_thread_js_callArgs);
     }
 
@@ -1866,6 +1912,7 @@ var wasmImports = {
   "_emscripten_thread_mailbox_await": __emscripten_thread_mailbox_await,
   "_emscripten_thread_set_strongref": __emscripten_thread_set_strongref,
   "abort": _abort,
+  "emscripten_asm_const_int_sync_on_main_thread": _emscripten_asm_const_int_sync_on_main_thread,
   "emscripten_check_blocking_allowed": _emscripten_check_blocking_allowed,
   "emscripten_date_now": _emscripten_date_now,
   "emscripten_exit_with_live_runtime": _emscripten_exit_with_live_runtime,
