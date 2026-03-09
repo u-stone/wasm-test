@@ -141,17 +141,103 @@ Wasm 调试通常面临“源码语义丢失”与“栈信息不直观”问题
 
 产物目录统一为：`output/<mode>/`。
 
-### 4.3 运行时切换机制
+### 4.3 如何生成 DWARF 与 Source Map 产物
+
+#### 4.3.1 前置条件
+1. 已安装并激活 Emscripten（命令行可识别 `em++`）。
+2. 在仓库根目录执行命令：`D:\MyGitHub\wasm`。
+3. 建议使用 PowerShell，且允许脚本执行策略。
+
+#### 4.3.2 一次性生成全部模式
+在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode all
+```
+
+该命令会串行调用各 demo 的 `build.ps1`，分别产出：
+- `release`（`-O2`）
+- `dwarf`（`-O1 -g`）
+- `sourcemap`（`-O1 -gsource-map`）
+
+#### 4.3.3 单独生成某一种模式
+示例：只生成 DWARF。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode dwarf
+```
+
+示例：只生成 Source Map。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode sourcemap
+```
+
+若只构建单个 demo（例如 pthreads），可在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File demos/01-pthreads/build.ps1 -DebugMode dwarf
+```
+
+#### 4.3.4 产物目录与文件形态
+所有 demo 都遵循同一布局：
+
+- `demos/<demo>/output/release/*.js` 与 `*.wasm`
+- `demos/<demo>/output/dwarf/*.js` 与 `*.wasm`
+- `demos/<demo>/output/sourcemap/*.js` 与 `*.wasm`（通常伴随 map 关联信息）
+
+核心差异不在入口文件名，而在编译参数与调试元数据。
+
+### 4.4 运行时切换与加载路径
 所有 demo 页面按以下优先级选择模式：
 
-1. URL 查询参数 `?debug=`。
+1. URL 查询参数 `?debug=`（如 `?debug=dwarf`）。
 2. `localStorage.wasmDebugMode`。
 3. 默认 `release`。
 
-随后动态加载 `output/<mode>/<artifact>.js`。
+随后动态加载 `output/<mode>/<artifact>.js`。例如：
+- pthreads: `output/dwarf/main.js`
+- asyncify: `output/sourcemap/asyncify.js`
+- manual-workers: `output/release/task.js`
+- coroutine: `output/dwarf/coroutine.js`
 
-### 4.4 设计价值
-该机制将“调试策略”从构建脚本内隐参数提升为“页面可见、可切换、可分享链接”的显式能力，显著降低协作沟通成本。
+该机制让调试模式可通过链接直接共享，例如：
+- `/isolated/demos/01-pthreads/web/index.html?debug=dwarf`
+- `/plain/demos/02-asyncify/web/index.html?debug=sourcemap`
+
+### 4.5 在浏览器中验证调试信息是否生效
+
+#### 4.5.1 DWARF 验证要点
+1. 以 `?debug=dwarf` 打开 demo 页面。
+2. 打开 DevTools，触发一次运行。
+3. 在 Sources 中确认可关联到 C++ 源文件（而非仅胶水 JS）。
+4. 观察调用栈是否包含更可读的 C++ 语义信息。
+
+#### 4.5.2 Source Map 验证要点
+1. 以 `?debug=sourcemap` 打开 demo 页面。
+2. 打开 DevTools 并触发运行。
+3. 在 Sources 中确认映射后的源码可定位。
+4. 设置断点后验证是否命中预期源码行。
+
+### 4.6 DWARF 与 Source Map 的优劣对比
+
+| 维度 | DWARF (`-g`) | Source Map (`-gsource-map`) |
+|---|---|---|
+| 调试信息形态 | 调试信息随 Wasm/相关符号信息存在 | 通过映射机制将执行位置映射回源码 |
+| C++ 语义保真 | 通常更强，接近原生调试语义 | 取决于映射完整度与浏览器支持 |
+| 断点体验 | 对复杂 C++ 场景更友好 | 对前端工程师较直观，入口一致 |
+| 产物体积 | 通常更大 | 额外 map 文件与映射处理成本 |
+| 浏览器依赖 | 对 DevTools 能力更敏感 | 对 Source Map 处理链路更敏感 |
+| 团队协作 | 偏 C++/底层排障团队 | 偏前端/全栈协作团队 |
+
+### 4.7 典型选型建议
+1. 以 C++ 逻辑排障为主（线程同步、状态机、复杂栈）：优先 `dwarf`。
+2. 以跨角色协作为主（前端与 Wasm 联调）：优先 `sourcemap`。
+3. 性能回归与功能验证阶段：默认 `release`，仅在问题复现时切换 `dwarf` 或 `sourcemap`。
+4. 团队实践建议：CI 同时保留 `release + dwarf`，`sourcemap` 可按需或夜间任务生成。
+
+### 4.8 设计价值
+该机制将“调试策略”从构建脚本内隐参数提升为“页面可见、可切换、可分享链接”的显式能力，显著降低协作沟通成本，并能在同一套 demo 中快速完成“性能验证”和“源码级定位”的模式切换。
 
 ## 5. 统一对比面板的观测方法
 
