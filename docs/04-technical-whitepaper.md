@@ -143,6 +143,11 @@ Wasm 调试通常面临“源码语义丢失”与“栈信息不直观”问题
 
 ### 4.3 如何生成 DWARF 与 Source Map 产物
 
+先给一个结论：
+1. `dwarf` 模式通过 `-g` 把 C/C++ 源码、行号、符号等调试元数据写入 Wasm 调试信息。
+2. `sourcemap` 模式通过 `-gsource-map` 生成可映射关系，让浏览器把执行位置还原到源码位置。
+3. 浏览器能否“看到源码并正确断点”，取决于产物是否包含调试信息 + DevTools 是否启用对应能力 + 资源路径是否可访问。
+
 #### 4.3.1 前置条件
 1. 已安装并激活 Emscripten（命令行可识别 `em++`）。
 2. 在仓库根目录执行命令：`D:\MyGitHub\wasm`。
@@ -159,6 +164,8 @@ powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode all
 - `release`（`-O2`）
 - `dwarf`（`-O1 -g`）
 - `sourcemap`（`-O1 -gsource-map`）
+
+其中 `-O1` 的目的，是在保留一定可调试性的同时避免 `-O0` 带来的过大性能偏差。若你把优化开到更高，调试时可能出现“变量被优化掉/单步跳行”等现象。
 
 #### 4.3.3 单独生成某一种模式
 示例：只生成 DWARF。
@@ -188,6 +195,19 @@ powershell -ExecutionPolicy Bypass -File demos/01-pthreads/build.ps1 -DebugMode 
 
 核心差异不在入口文件名，而在编译参数与调试元数据。
 
+#### 4.3.5 调试信息从编译到浏览器的传递链路
+`dwarf` 传递链路：
+1. `em++ -g` 在构建阶段保留 DWARF 调试信息。
+2. 运行时加载 `*.wasm` 后，DevTools 基于 DWARF 元数据解析源码行号/符号。
+3. 开发者可在 DevTools 中看到更接近 C++ 语义的断点与调用栈。
+
+`sourcemap` 传递链路：
+1. `em++ -gsource-map` 生成映射关系。
+2. 浏览器加载入口 `*.js` 与 `*.wasm` 时，根据映射关系还原源码位置。
+3. DevTools 在 Sources 面板展示映射后的源码视图，断点命中映射行。
+
+这两条链路都要求“源码路径可被解析”。如果 map 或源码路径失配，常见现象是只能看到压缩后的胶水代码或匿名 Wasm 帧。
+
 ### 4.4 运行时切换与加载路径
 所有 demo 页面按以下优先级选择模式：
 
@@ -207,17 +227,33 @@ powershell -ExecutionPolicy Bypass -File demos/01-pthreads/build.ps1 -DebugMode 
 
 ### 4.5 在浏览器中验证调试信息是否生效
 
+建议先启动本地服务，再访问 demo：
+
+```powershell
+python server.py
+```
+
+然后从 `http://localhost:8000/isolated/index.html` 或 `http://localhost:8000/plain/index.html` 进入对应页面。
+
 #### 4.5.1 DWARF 验证要点
 1. 以 `?debug=dwarf` 打开 demo 页面。
 2. 打开 DevTools，触发一次运行。
 3. 在 Sources 中确认可关联到 C++ 源文件（而非仅胶水 JS）。
 4. 观察调用栈是否包含更可读的 C++ 语义信息。
+5. 在 C++ 对应行设置断点，再次触发运行，验证断点命中与单步行为。
 
 #### 4.5.2 Source Map 验证要点
 1. 以 `?debug=sourcemap` 打开 demo 页面。
 2. 打开 DevTools 并触发运行。
 3. 在 Sources 中确认映射后的源码可定位。
 4. 设置断点后验证是否命中预期源码行。
+5. 在 Network 面板确认 map 资源请求成功（状态码 200，路径正确）。
+
+#### 4.5.3 常见失败现象与排查
+1. 现象：只能看到 JS 胶水代码。排查：确认 URL 使用了 `?debug=dwarf` 或 `?debug=sourcemap`，且 `output/<mode>` 产物存在。
+2. 现象：断点命中位置偏移。排查：确认当前运行产物与源码版本一致，重新全量构建后硬刷新。
+3. 现象：Source Map 不生效。排查：检查 Network 中 map 请求是否 404，确认静态服务路径与 map 引用一致。
+4. 现象：调用栈符号不完整。排查：避免过高优化级别，优先使用当前文档推荐的 `-O1` 调试配置。
 
 ### 4.6 DWARF 与 Source Map 的优劣对比
 
@@ -229,6 +265,11 @@ powershell -ExecutionPolicy Bypass -File demos/01-pthreads/build.ps1 -DebugMode 
 | 产物体积 | 通常更大 | 额外 map 文件与映射处理成本 |
 | 浏览器依赖 | 对 DevTools 能力更敏感 | 对 Source Map 处理链路更敏感 |
 | 团队协作 | 偏 C++/底层排障团队 | 偏前端/全栈协作团队 |
+
+补充理解：
+1. DWARF 更像“把原生调试信息带进 Wasm 运行时”。
+2. Source Map 更像“把执行位置映射回你熟悉的源码视图”。
+3. 二者不是互斥关系，团队可以同时产出，按问题类型切换。
 
 ### 4.7 典型选型建议
 1. 以 C++ 逻辑排障为主（线程同步、状态机、复杂栈）：优先 `dwarf`。
