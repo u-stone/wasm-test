@@ -20,6 +20,10 @@ function runJob(job) {
 }
 
 self.Module = {
+  locateFile: function(path) {
+    // Ensure task.wasm and companion assets resolve from output/<debugMode>/ in worker context.
+    return `../output/${debugMode}/${path}`;
+  },
   onRuntimeInitialized: function() {
     ready = true;
     while (pendingJobs.length > 0) {
