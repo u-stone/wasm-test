@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>01 - Pthreads (SharedArrayBuffer)</title>
+</head>
+<body>
+    <h1>01 - Pthreads (SharedArrayBuffer)</h1>
+    <button id="run">Run Pthreads Demo</button>
+    <script>
+        const scheme = 'pthreads';
+        let runtimeReady = false;
+        let runStart = 0;
+        const params = new URLSearchParams(window.location.search);
+        const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
+
+        function appendModeBadge() {
+            const badge = document.createElement('p');
+            badge.textContent = `Debug mode: ${debugMode}`;
+            document.body.insertBefore(badge, document.getElementById('run'));
+        }
+
+        function emit(event, payload) {
+            window.parent.postMessage(Object.assign({
+                source: 'wasm-demo',
+                scheme,
+                event,
+                ts: performance.now()
+            }, payload || {}), '*');
+        }
+
+        function runDemo() {
+            if (!runtimeReady) {
+                return;
+            }
+            runStart = performance.now();
+            emit('run-start');
+            Module.ccall('run_threads', null, ['number'], [4]);
+        }
+
+        const rawLog = console.log.bind(console);
+        console.log = function() {
+            const message = Array.from(arguments).join(' ');
+            emit('log', { message });
+            if (message.indexOf('[pthreads] All threads finished') >= 0) {
+                emit('run-end', { durationMs: performance.now() - runStart });
+            }
+            rawLog.apply(console, arguments);
+        };
+
+        window.addEventListener('message', function(event) {
+            if (!event.data || event.data.type !== 'run-demo') {
+                return;
+            }
+            if (event.data.scheme !== scheme && event.data.scheme !== 'all') {
+                return;
+            }
+            runDemo();
+        });
+
+        if (typeof SharedArrayBuffer === 'undefined') {
+            alert('SharedArrayBuffer is not available. This demo needs COOP/COEP headers.');
+            emit('warning', { message: 'SharedArrayBuffer is not available.' });
+        }
+
+        Module = {
+            onRuntimeInitialized: function() {
+                runtimeReady = true;
+                document.getElementById('run').disabled = false;
+                console.log('[pthreads] wasm ready');
+                emit('ready');
+            }
+        };
+
+        document.getElementById('run').disabled = true;
+        document.getElementById('run').addEventListener('click', runDemo);
+        appendModeBadge();
+
+        const wasmScript = document.createElement('script');
+        wasmScript.src = `../output/${debugMode}/main.js`;
+        document.body.appendChild(wasmScript);
+    </script>
+</body>
+</html>

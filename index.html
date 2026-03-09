@@ -1,26 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Emscripten 多线程测试</title>
+  <meta charset="utf-8">
+  <title>Wasm Threading Comparison Demos</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      max-width: 960px;
+      margin: 24px auto;
+      line-height: 1.5;
+      padding: 0 16px;
+    }
+    h1 { margin-bottom: 4px; }
+    .group {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 12px 0;
+    }
+    .quick-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 10px 0 14px;
+    }
+    .quick-actions a {
+      display: inline-block;
+      border: 1px solid #0b5ed7;
+      border-radius: 6px;
+      padding: 8px 12px;
+      text-decoration: none;
+      background: #eaf3ff;
+    }
+    a { color: #0b5ed7; }
+    code { background: #f5f5f5; padding: 1px 4px; }
+  </style>
 </head>
 <body>
-    <h1>Emscripten 多线程测试</h1>
-    <script>
-        // 检查浏览器是否支持 SharedArrayBuffer
-        if (typeof SharedArrayBuffer === 'undefined') {
-            alert('您的浏览器不支持 SharedArrayBuffer，多线程可能无法正常工作。');
-        }
+  <h1>Wasm Threading Comparison Demos</h1>
+  <p>Open one demo at a time and compare behavior in browser DevTools.</p>
+  <div class="quick-actions">
+    <a id="entry-isolated" href="/isolated/index.html">隔离模式打开</a>
+    <a id="entry-plain" href="/plain/index.html">普通模式打开</a>
+  </div>
+  <p><a href="./compare.html" data-demo-link>Open Unified Comparison Panel</a></p>
 
-        // 加载 WASM 模块
-        Module = {
-            onRuntimeInitialized: function() {
-                console.log('WASM 模块加载完成!');
-                // 调用 C++ 函数，启动 4 个线程
-                Module.ccall('run_threads', null, ['number'], [4]);
-            }
-        };
-    </script>
-    <script src="main.js"></script>
+  <div class="group">
+    <h2>Debug Mode</h2>
+    <p>Select which wasm build variant to load in all demo pages.</p>
+    <label for="debug-mode">Mode:</label>
+    <select id="debug-mode">
+      <option value="release">release</option>
+      <option value="dwarf">dwarf</option>
+      <option value="sourcemap">sourcemap</option>
+    </select>
+    <p><code>release</code>: optimized, <code>dwarf</code>: wasm DWARF debug info, <code>sourcemap</code>: source map files.</p>
+  </div>
+
+  <div class="group">
+    <h2>Four Threading/Concurrency Schemes</h2>
+    <ul>
+      <li><a href="./demos/01-pthreads/web/index.html" data-demo-link>01 - Pthreads (SharedArrayBuffer)</a></li>
+      <li><a href="./demos/02-asyncify/web/index.html" data-demo-link>02 - Asyncify (Cooperative Yield)</a></li>
+      <li><a href="./demos/03-manual-workers/web/index.html" data-demo-link>03 - Manual Web Workers (Message Passing)</a></li>
+      <li><a href="./demos/04-cpp20-coroutine/web/index.html" data-demo-link>04 - C++20 Coroutine (Single-threaded cooperative)</a></li>
+    </ul>
+  </div>
+
+  <div class="group">
+    <h2>Extra Interop Demos</h2>
+    <ul>
+      <li><a href="./demos/extra-interop/closure/web/index.html" data-demo-link>JS Closure Bridge</a></li>
+      <li><a href="./demos/extra-interop/type-conversion/web/index.html" data-demo-link>Type Conversion</a></li>
+    </ul>
+  </div>
+
+  <div class="group">
+    <h2>Build</h2>
+    <p>Build all demos with:</p>
+    <pre><code>powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1</code></pre>
+    <pre><code>powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode all</code></pre>
+  </div>
+
+  <div class="group">
+    <h2>Documentation</h2>
+    <ul>
+      <li><a href="./docs/01-user-validation-guide.md">01 - 用户验证与演示指南</a></li>
+      <li><a href="./docs/02-developer-code-reading-guide.md">02 - 开发者读码指南</a></li>
+      <li><a href="./docs/03-debugging-wasm-js-guide.md">03 - Wasm 与 JS 调试指南</a></li>
+    </ul>
+  </div>
+
+  <script>
+    const modeSelect = document.getElementById('debug-mode');
+    const links = Array.from(document.querySelectorAll('a[data-demo-link]'));
+    const isolatedEntry = document.getElementById('entry-isolated');
+    const plainEntry = document.getElementById('entry-plain');
+    const params = new URLSearchParams(window.location.search);
+    const currentMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
+
+    modeSelect.value = currentMode;
+    localStorage.setItem('wasmDebugMode', currentMode);
+
+    function applyModeToLinks(mode) {
+      for (const link of links) {
+        const url = new URL(link.getAttribute('href'), window.location.href);
+        url.searchParams.set('debug', mode);
+        link.setAttribute('href', `${url.pathname}${url.search}`);
+      }
+    }
+
+    function applyModeToEntryButtons(mode) {
+      isolatedEntry.setAttribute('href', `/isolated/index.html?debug=${encodeURIComponent(mode)}`);
+      plainEntry.setAttribute('href', `/plain/index.html?debug=${encodeURIComponent(mode)}`);
+    }
+
+    applyModeToLinks(currentMode);
+    applyModeToEntryButtons(currentMode);
+
+    modeSelect.addEventListener('change', () => {
+      localStorage.setItem('wasmDebugMode', modeSelect.value);
+      applyModeToLinks(modeSelect.value);
+      applyModeToEntryButtons(modeSelect.value);
+    });
+  </script>
 </body>
 </html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Unified Wasm Comparison Panel</title>
+  <style>
+    :root {
+      --bg: #f7f4ed;
+      --card: #fffdf8;
+      --line: #d7cec1;
+      --text: #2f2a23;
+      --sub: #6e655b;
+      --accent: #1f7a8c;
+      --good: #2a8a3e;
+      --warn: #b26a00;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, #f2e6d4 0%, transparent 32%),
+        radial-gradient(circle at 90% 0%, #dfeaed 0%, transparent 25%),
+        var(--bg);
+    }
+
+    header {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.85);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(4px);
+      z-index: 2;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar button {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    .toolbar button.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, 1fr));
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto auto 220px;
+    }
+
+    .head {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--sub);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .status-ready { color: var(--good); }
+    .status-running { color: var(--warn); }
+
+    .actions {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .actions button {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: white;
+    }
+
+    .logs {
+      margin: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      padding: 10px;
+    }
+
+    .logbox {
+      margin-top: 8px;
+      height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 8px;
+      font-family: "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 980px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Unified Wasm Comparison Panel</h1>
+    <div class="toolbar">
+      <button id="run-all" class="primary">Run All</button>
+      <button id="clear">Clear Logs</button>
+      <label for="debug-mode">Mode:</label>
+      <select id="debug-mode">
+        <option value="release">release</option>
+        <option value="dwarf">dwarf</option>
+        <option value="sourcemap">sourcemap</option>
+      </select>
+      <a href="./index.html">Back to Demo Index</a>
+    </div>
+  </header>
+
+  <section class="grid" id="cards"></section>
+
+  <section class="logs">
+    <strong>Unified Event Log</strong>
+    <div class="logbox" id="event-log"></div>
+  </section>
+
+  <script>
+    const demos = [
+      {
+        scheme: 'pthreads',
+        title: '01 - Pthreads (SharedArrayBuffer)',
+        src: './demos/01-pthreads/web/index.html'
+      },
+      {
+        scheme: 'asyncify',
+        title: '02 - Asyncify',
+        src: './demos/02-asyncify/web/index.html'
+      },
+      {
+        scheme: 'manual-workers',
+        title: '03 - Manual Web Workers',
+        src: './demos/03-manual-workers/web/index.html'
+      },
+      {
+        scheme: 'coroutine',
+        title: '04 - C++20 Coroutine',
+        src: './demos/04-cpp20-coroutine/web/index.html'
+      }
+    ];
+
+    const state = {};
+    const cards = document.getElementById('cards');
+    const eventLog = document.getElementById('event-log');
+    const modeSelect = document.getElementById('debug-mode');
+    const params = new URLSearchParams(window.location.search);
+    const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
+    modeSelect.value = debugMode;
+    localStorage.setItem('wasmDebugMode', debugMode);
+
+    function appendEvent(text) {
+      const line = document.createElement('div');
+      line.textContent = text;
+      eventLog.appendChild(line);
+      eventLog.scrollTop = eventLog.scrollHeight;
+    }
+
+    function updateCard(scheme) {
+      const s = state[scheme];
+      const statusNode = document.getElementById(`status-${scheme}`);
+      const durationNode = document.getElementById(`duration-${scheme}`);
+      const runsNode = document.getElementById(`runs-${scheme}`);
+
+      statusNode.textContent = s.status;
+      statusNode.className = s.status === 'running' ? 'status-running' : (s.status === 'ready' ? 'status-ready' : '');
+      durationNode.textContent = s.lastDurationMs === null ? '-' : `${s.lastDurationMs.toFixed(1)} ms`;
+      runsNode.textContent = String(s.runs);
+    }
+
+    function runOne(scheme) {
+      const s = state[scheme];
+      if (!s.frame) {
+        return;
+      }
+      s.status = 'running';
+      s.startedAt = performance.now();
+      updateCard(scheme);
+      s.frame.contentWindow.postMessage({ type: 'run-demo', scheme }, '*');
+    }
+
+    function buildCard(demo) {
+      state[demo.scheme] = {
+        status: 'loading',
+        runs: 0,
+        lastDurationMs: null,
+        startedAt: 0,
+        frame: null
+      };
+
+      const wrapper = document.createElement('article');
+      wrapper.className = 'card';
+      wrapper.innerHTML = `
+        <div class="head">
+          <strong>${demo.title}</strong>
+          <div class="meta">
+            <span>Status: <span id="status-${demo.scheme}">loading</span></span>
+            <span>Last: <span id="duration-${demo.scheme}">-</span></span>
+            <span>Runs: <span id="runs-${demo.scheme}">0</span></span>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="run-${demo.scheme}">Run This</button>
+          <span style="color: var(--sub); font-size: 12px;">${demo.scheme}</span>
+        </div>
+      `;
+
+      const frame = document.createElement('iframe');
+      const url = new URL(demo.src, window.location.href);
+      url.searchParams.set('debug', modeSelect.value);
+      frame.src = `${url.pathname}${url.search}`;
+      wrapper.appendChild(frame);
+      cards.appendChild(wrapper);
+
+      state[demo.scheme].frame = frame;
+
+      document.getElementById(`run-${demo.scheme}`).addEventListener('click', () => runOne(demo.scheme));
+      updateCard(demo.scheme);
+    }
+
+    demos.forEach(buildCard);
+
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || data.source !== 'wasm-demo' || !state[data.scheme]) {
+        return;
+      }
+
+      const s = state[data.scheme];
+      if (data.event === 'ready') {
+        s.status = 'ready';
+      } else if (data.event === 'run-start') {
+        s.status = 'running';
+        s.startedAt = performance.now();
+      } else if (data.event === 'run-end') {
+        s.status = 'ready';
+        s.runs += 1;
+        s.lastDurationMs = typeof data.durationMs === 'number'
+          ? data.durationMs
+          : (performance.now() - s.startedAt);
+      } else if (data.event === 'warning') {
+        appendEvent(`[${data.scheme}] WARNING: ${data.message || ''}`);
+      } else if (data.event === 'log') {
+        appendEvent(`[${data.scheme}] ${data.message || ''}`);
+      }
+
+      updateCard(data.scheme);
+    });
+
+    document.getElementById('run-all').addEventListener('click', () => {
+      demos.forEach((d, i) => {
+        // Stagger starts slightly so logs remain readable.
+        setTimeout(() => runOne(d.scheme), i * 80);
+      });
+    });
+
+    document.getElementById('clear').addEventListener('click', () => {
+      eventLog.innerHTML = '';
+    });
+
+    modeSelect.addEventListener('change', () => {
+      localStorage.setItem('wasmDebugMode', modeSelect.value);
+      window.location.search = `?debug=${encodeURIComponent(modeSelect.value)}`;
+    });
+  </script>
+</body>
+</html>

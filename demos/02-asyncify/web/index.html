@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>02 - Asyncify Cooperative Demo</title>
+</head>
+<body>
+  <h1>02 - Asyncify Cooperative Demo</h1>
+  <p>Open DevTools console to observe yielding behavior.</p>
+  <button id="run">Run Asyncify Demo</button>
+
+  <script>
+    const scheme = 'asyncify';
+    let runtimeReady = false;
+    let runStart = 0;
+    const params = new URLSearchParams(window.location.search);
+    const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
+
+    function appendModeBadge() {
+      const badge = document.createElement('p');
+      badge.textContent = `Debug mode: ${debugMode}`;
+      document.body.insertBefore(badge, document.getElementById('run'));
+    }
+
+    function emit(event, payload) {
+      window.parent.postMessage(Object.assign({
+        source: 'wasm-demo',
+        scheme,
+        event,
+        ts: performance.now()
+      }, payload || {}), '*');
+    }
+
+    function runDemo() {
+      if (!runtimeReady) {
+        return;
+      }
+      runStart = performance.now();
+      emit('run-start');
+      Module.ccall('run_asyncify_demo', null, [], []);
+    }
+
+    const rawLog = console.log.bind(console);
+    console.log = function() {
+      const message = Array.from(arguments).join(' ');
+      emit('log', { message });
+      if (message.indexOf('[asyncify] end') >= 0) {
+        emit('run-end', { durationMs: performance.now() - runStart });
+      }
+      rawLog.apply(console, arguments);
+    };
+
+    window.addEventListener('message', function(event) {
+      if (!event.data || event.data.type !== 'run-demo') {
+        return;
+      }
+      if (event.data.scheme !== scheme && event.data.scheme !== 'all') {
+        return;
+      }
+      runDemo();
+    });
+
+    Module = {
+      onRuntimeInitialized: function() {
+        runtimeReady = true;
+        console.log('[asyncify] wasm ready');
+        document.getElementById('run').disabled = false;
+        emit('ready');
+      }
+    };
+
+    appendModeBadge();
+  </script>
+  <script>
+    document.getElementById('run').disabled = true;
+    document.getElementById('run').addEventListener('click', runDemo);
+
+    const wasmScript = document.createElement('script');
+    wasmScript.src = `../output/${debugMode}/asyncify.js`;
+    document.body.appendChild(wasmScript);
+  </script>
+</body>
+</html>
