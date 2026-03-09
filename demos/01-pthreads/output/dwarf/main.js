@@ -1980,8 +1980,8 @@ var dynCall_jiji = Module["dynCall_jiji"] = function() {
   return (dynCall_jiji = Module["dynCall_jiji"] = Module["asm"]["dynCall_jiji"]).apply(null, arguments);
 };
 
-var ___start_em_js = Module['___start_em_js'] = 5856;
-var ___stop_em_js = Module['___stop_em_js'] = 5913;
+var ___start_em_js = Module['___start_em_js'] = 5904;
+var ___stop_em_js = Module['___stop_em_js'] = 5961;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

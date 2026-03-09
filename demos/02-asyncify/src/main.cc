@@ -7,20 +7,20 @@ EM_JS(void, jsPrint, (const char* str), {
 });
 
 void EMSCRIPTEN_KEEPALIVE run_asyncify_demo() {
-  jsPrint("[asyncify] start");
+  jsPrint("[LOG][scheme=asyncify][level=INFO] event=run_start");
 
   for (int task = 0; task < 4; ++task) {
-    char message[80];
-    std::snprintf(message, sizeof(message), "[asyncify] task %d step 1", task);
+    char message[128];
+    std::snprintf(message, sizeof(message), "[LOG][scheme=asyncify][level=INFO] event=task_step task=%d step=1", task);
     jsPrint(message);
 
     // Yield to the browser event loop to simulate cooperative scheduling.
     emscripten_sleep(0);
 
-    std::snprintf(message, sizeof(message), "[asyncify] task %d step 2", task);
+    std::snprintf(message, sizeof(message), "[LOG][scheme=asyncify][level=INFO] event=task_step task=%d step=2", task);
     jsPrint(message);
   }
 
-  jsPrint("[asyncify] end");
+  jsPrint("[LOG][scheme=asyncify][level=INFO] event=run_complete");
 }
 }

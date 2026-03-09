@@ -9,6 +9,7 @@
     <button id="run">Run Pthreads Demo</button>
     <script>
         const scheme = 'pthreads';
+        const requiresIsolation = true;
         let runtimeReady = false;
         let runStart = 0;
         const params = new URLSearchParams(window.location.search);
@@ -18,6 +19,11 @@
             const badge = document.createElement('p');
             badge.textContent = `Debug mode: ${debugMode}`;
             document.body.insertBefore(badge, document.getElementById('run'));
+
+            const env = document.createElement('p');
+            env.textContent = `Requirement: COOP/COEP required | crossOriginIsolated=${window.crossOriginIsolated}`;
+            env.style.color = window.crossOriginIsolated ? '#2a8a3e' : '#b26a00';
+            document.body.insertBefore(env, document.getElementById('run'));
         }
 
         function emit(event, payload) {
@@ -40,12 +46,15 @@
 
         const rawLog = console.log.bind(console);
         console.log = function() {
-            const message = Array.from(arguments).join(' ');
+            const original = Array.from(arguments).join(' ');
+            const message = original.startsWith('[LOG]')
+                ? original
+                : `[LOG][scheme=${scheme}][source=js] ${original}`;
             emit('log', { message });
-            if (message.indexOf('[pthreads] All threads finished') >= 0) {
+            if (original.indexOf('event=run_complete') >= 0) {
                 emit('run-end', { durationMs: performance.now() - runStart });
             }
-            rawLog.apply(console, arguments);
+            rawLog(message);
         };
 
         window.addEventListener('message', function(event) {
@@ -63,11 +72,15 @@
             emit('warning', { message: 'SharedArrayBuffer is not available.' });
         }
 
+        if (requiresIsolation && !window.crossOriginIsolated) {
+            emit('warning', { message: 'This scheme requires COOP/COEP. Open via /isolated/ path.' });
+        }
+
         Module = {
             onRuntimeInitialized: function() {
                 runtimeReady = true;
                 document.getElementById('run').disabled = false;
-                console.log('[pthreads] wasm ready');
+                console.log('event=wasm_ready');
                 emit('ready');
             }
         };

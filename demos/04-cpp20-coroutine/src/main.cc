@@ -79,13 +79,18 @@ void EMSCRIPTEN_KEEPALIVE run_coroutine_demo() {
       const bool stillRunning = tasks[i].resume();
       if (stillRunning) {
         hasActive = true;
-        char message[80];
-        std::snprintf(message, sizeof(message), "[coroutine] task %d yielded %d", static_cast<int>(i + 1), tasks[i].value());
+        char message[160];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "[LOG][scheme=coroutine][level=INFO] event=task_yield task=%d value=%d",
+            static_cast<int>(i + 1),
+            tasks[i].value());
         jsPrint(message);
       }
     }
   }
 
-  jsPrint("[coroutine] all tasks finished (single-thread cooperative)");
+  jsPrint("[LOG][scheme=coroutine][level=INFO] event=run_complete model=single_thread_cooperative");
 }
 }

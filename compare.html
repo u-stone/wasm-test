@@ -172,22 +172,26 @@
       {
         scheme: 'pthreads',
         title: '01 - Pthreads (SharedArrayBuffer)',
-        src: './demos/01-pthreads/web/index.html'
+        src: './demos/01-pthreads/web/index.html',
+        requiresIsolation: true
       },
       {
         scheme: 'asyncify',
         title: '02 - Asyncify',
-        src: './demos/02-asyncify/web/index.html'
+        src: './demos/02-asyncify/web/index.html',
+        requiresIsolation: false
       },
       {
         scheme: 'manual-workers',
         title: '03 - Manual Web Workers',
-        src: './demos/03-manual-workers/web/index.html'
+        src: './demos/03-manual-workers/web/index.html',
+        requiresIsolation: false
       },
       {
         scheme: 'coroutine',
         title: '04 - C++20 Coroutine',
-        src: './demos/04-cpp20-coroutine/web/index.html'
+        src: './demos/04-cpp20-coroutine/web/index.html',
+        requiresIsolation: false
       }
     ];
 
@@ -199,6 +203,9 @@
     const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
     modeSelect.value = debugMode;
     localStorage.setItem('wasmDebugMode', debugMode);
+
+    const currentMode = window.location.pathname.includes('/plain/') ? 'plain' : 'isolated';
+    appendEvent(`[SYSTEM] server_mode=${currentMode} debug_mode=${debugMode}`);
 
     function appendEvent(text) {
       const line = document.createElement('div');
@@ -212,11 +219,16 @@
       const statusNode = document.getElementById(`status-${scheme}`);
       const durationNode = document.getElementById(`duration-${scheme}`);
       const runsNode = document.getElementById(`runs-${scheme}`);
+      const reqNode = document.getElementById(`req-${scheme}`);
 
       statusNode.textContent = s.status;
       statusNode.className = s.status === 'running' ? 'status-running' : (s.status === 'ready' ? 'status-ready' : '');
       durationNode.textContent = s.lastDurationMs === null ? '-' : `${s.lastDurationMs.toFixed(1)} ms`;
       runsNode.textContent = String(s.runs);
+      reqNode.textContent = s.requiresIsolation
+        ? (currentMode === 'isolated' ? 'required, satisfied' : 'required, not satisfied')
+        : 'not required';
+      reqNode.style.color = s.requiresIsolation && currentMode !== 'isolated' ? '#b26a00' : '#2a8a3e';
     }
 
     function runOne(scheme) {
@@ -236,7 +248,8 @@
         runs: 0,
         lastDurationMs: null,
         startedAt: 0,
-        frame: null
+        frame: null,
+        requiresIsolation: demo.requiresIsolation
       };
 
       const wrapper = document.createElement('article');
@@ -248,6 +261,7 @@
             <span>Status: <span id="status-${demo.scheme}">loading</span></span>
             <span>Last: <span id="duration-${demo.scheme}">-</span></span>
             <span>Runs: <span id="runs-${demo.scheme}">0</span></span>
+            <span>COOP/COEP: <span id="req-${demo.scheme}">-</span></span>
           </div>
         </div>
         <div class="actions">
@@ -292,7 +306,7 @@
       } else if (data.event === 'warning') {
         appendEvent(`[${data.scheme}] WARNING: ${data.message || ''}`);
       } else if (data.event === 'log') {
-        appendEvent(`[${data.scheme}] ${data.message || ''}`);
+        appendEvent(data.message || `[${data.scheme}] <empty log>`);
       }
 
       updateCard(data.scheme);

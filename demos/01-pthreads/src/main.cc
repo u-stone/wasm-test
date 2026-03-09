@@ -19,8 +19,8 @@ extern "C" {
                     volatile double result = std::sin(i * j);
                     (void)result;
                 }
-                char message[50];
-                std::snprintf(message, sizeof(message), "[pthreads] Thread %d finished", i);
+                char message[128];
+                std::snprintf(message, sizeof(message), "[LOG][scheme=pthreads][level=INFO] event=thread_done thread=%d", i);
                 jsPrint(message);
             });
         }
@@ -29,6 +29,6 @@ extern "C" {
             thread.join();
         }
 
-        jsPrint("[pthreads] All threads finished");
+        jsPrint("[LOG][scheme=pthreads][level=INFO] event=run_complete");
     }
 }

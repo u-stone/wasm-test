@@ -1,12 +1,18 @@
 const workerCount = 4;
 const iterationsPerWorker = 300000;
 const scheme = 'manual-workers';
+const requiresIsolation = false;
 const params = new URLSearchParams(window.location.search);
 const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
 
 const modeBadge = document.createElement('p');
 modeBadge.textContent = `Debug mode: ${debugMode}`;
 document.body.insertBefore(modeBadge, document.getElementById('run'));
+
+const envBadge = document.createElement('p');
+envBadge.textContent = `Requirement: COOP/COEP not required | crossOriginIsolated=${window.crossOriginIsolated}`;
+envBadge.style.color = '#2a8a3e';
+document.body.insertBefore(envBadge, document.getElementById('run'));
 
 function emit(event, payload) {
   window.parent.postMessage(Object.assign({
@@ -18,11 +24,12 @@ function emit(event, payload) {
 }
 
 function appendLog(text) {
+  const unified = `[LOG][scheme=${scheme}][source=js] ${text}`;
   const list = document.getElementById('log');
   const li = document.createElement('li');
-  li.textContent = text;
+  li.textContent = unified;
   list.appendChild(li);
-  emit('log', { message: text });
+  emit('log', { message: unified });
 }
 
 function runDemo() {
@@ -66,5 +73,8 @@ window.addEventListener('message', (event) => {
 
 window.runManualWorkersDemo = runDemo;
 emit('ready');
+if (requiresIsolation && !window.crossOriginIsolated) {
+  emit('warning', { message: 'This scheme requires COOP/COEP.' });
+}
 
 document.getElementById('run').addEventListener('click', runDemo);

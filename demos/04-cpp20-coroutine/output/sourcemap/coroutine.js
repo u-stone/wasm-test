@@ -1074,8 +1074,8 @@ var ___cxa_is_pointer_type = function() {
   return (___cxa_is_pointer_type = Module["asm"]["__cxa_is_pointer_type"]).apply(null, arguments);
 };
 
-var ___start_em_js = Module['___start_em_js'] = 2316;
-var ___stop_em_js = Module['___stop_em_js'] = 2373;
+var ___start_em_js = Module['___start_em_js'] = 2380;
+var ___stop_em_js = Module['___stop_em_js'] = 2437;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

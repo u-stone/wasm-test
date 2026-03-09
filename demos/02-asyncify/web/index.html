@@ -11,6 +11,7 @@
 
   <script>
     const scheme = 'asyncify';
+    const requiresIsolation = false;
     let runtimeReady = false;
     let runStart = 0;
     const params = new URLSearchParams(window.location.search);
@@ -20,6 +21,11 @@
       const badge = document.createElement('p');
       badge.textContent = `Debug mode: ${debugMode}`;
       document.body.insertBefore(badge, document.getElementById('run'));
+
+      const env = document.createElement('p');
+      env.textContent = `Requirement: COOP/COEP not required | crossOriginIsolated=${window.crossOriginIsolated}`;
+      env.style.color = '#2a8a3e';
+      document.body.insertBefore(env, document.getElementById('run'));
     }
 
     function emit(event, payload) {
@@ -42,13 +48,20 @@
 
     const rawLog = console.log.bind(console);
     console.log = function() {
-      const message = Array.from(arguments).join(' ');
+      const original = Array.from(arguments).join(' ');
+      const message = original.startsWith('[LOG]')
+        ? original
+        : `[LOG][scheme=${scheme}][source=js] ${original}`;
       emit('log', { message });
-      if (message.indexOf('[asyncify] end') >= 0) {
+      if (original.indexOf('event=run_complete') >= 0) {
         emit('run-end', { durationMs: performance.now() - runStart });
       }
-      rawLog.apply(console, arguments);
+      rawLog(message);
     };
+
+    if (requiresIsolation && !window.crossOriginIsolated) {
+      emit('warning', { message: 'This scheme requires COOP/COEP.' });
+    }
 
     window.addEventListener('message', function(event) {
       if (!event.data || event.data.type !== 'run-demo') {
@@ -63,7 +76,7 @@
     Module = {
       onRuntimeInitialized: function() {
         runtimeReady = true;
-        console.log('[asyncify] wasm ready');
+        console.log('event=wasm_ready');
         document.getElementById('run').disabled = false;
         emit('ready');
       }

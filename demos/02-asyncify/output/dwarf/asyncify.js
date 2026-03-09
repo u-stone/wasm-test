@@ -1359,8 +1359,8 @@ var _asyncify_stop_rewind = function() {
   return (_asyncify_stop_rewind = Module["asm"]["asyncify_stop_rewind"]).apply(null, arguments);
 };
 
-var ___start_em_js = Module['___start_em_js'] = 1652;
-var ___stop_em_js = Module['___stop_em_js'] = 1709;
+var ___start_em_js = Module['___start_em_js'] = 1812;
+var ___stop_em_js = Module['___stop_em_js'] = 1869;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===
