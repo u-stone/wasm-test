@@ -2,16 +2,12 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>05 - CMake + emcmake Workflow</title>
+  <title>05 - CMake Tools Target</title>
 </head>
 <body>
-  <h1>05 - CMake + emcmake Workflow</h1>
-  <p>This demo is built by <code>emcmake + cmake --build</code>, not by calling <code>em++</code> directly.</p>
-  <p>Project layout is split into <code>app</code>, <code>domain</code>, <code>core</code>, and <code>platform</code> targets to mimic large-project CMake organization.</p>
-  <p>Sourcemap URLs are composed from <code>WASM_SOURCE_MAP_ROOT</code>, <code>WASM_ENV</code>, <code>WASM_PROJECT</code>, <code>WASM_BUILD_ID</code>, and <code>WASM_SOURCE_MAP_TARGET_SEGMENT</code> via a shared CMake module.</p>
-  <p>This project now builds two Wasm targets from one CMake workspace: <code>cmake_demo</code> and <code>cmake_tools_demo</code>.</p>
-  <p><a id="tools-link" href="./tools.html">Open Secondary Target Page</a></p>
-  <button id="run" disabled>Run CMake Demo</button>
+  <h1>05 - CMake Tools Target</h1>
+  <p>This page loads a second Wasm target from the same CMake project to demonstrate multi-target template reuse.</p>
+  <button id="run" disabled>Run Tools Target</button>
 
   <script>
     const scheme = 'cmake-emcmake';
@@ -20,17 +16,15 @@
     let runStart = 0;
     const params = new URLSearchParams(window.location.search);
     const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
-    document.getElementById('tools-link').href = `./tools.html?debug=${encodeURIComponent(debugMode)}`;
 
     function appendBadges() {
       const mode = document.createElement('p');
       mode.textContent = `Debug mode: ${debugMode}`;
       document.body.insertBefore(mode, document.getElementById('run'));
 
-      const env = document.createElement('p');
-      env.textContent = `Requirement: COOP/COEP not required | crossOriginIsolated=${window.crossOriginIsolated}`;
-      env.style.color = '#2a8a3e';
-      document.body.insertBefore(env, document.getElementById('run'));
+      const hint = document.createElement('p');
+      hint.textContent = 'Target: cmake_tools_demo';
+      document.body.insertBefore(hint, document.getElementById('run'));
     }
 
     function emit(event, payload) {
@@ -48,7 +42,7 @@
       }
       runStart = performance.now();
       emit('run-start');
-      Module.ccall('run_cmake_demo', null, [], []);
+      Module.ccall('run_cmake_tools_demo', null, [], []);
     }
 
     const rawLog = console.log.bind(console);
@@ -56,24 +50,13 @@
       const original = Array.from(arguments).join(' ');
       const message = original.startsWith('[LOG]')
         ? original
-        : `[LOG][scheme=${scheme}][source=js] ${original}`;
-
+        : `[LOG][scheme=${scheme}][target=tools][source=js] ${original}`;
       emit('log', { message });
       if (original.indexOf('event=run_complete') >= 0) {
         emit('run-end', { durationMs: performance.now() - runStart });
       }
       rawLog(message);
     };
-
-    window.addEventListener('message', function(event) {
-      if (!event.data || event.data.type !== 'run-demo') {
-        return;
-      }
-      if (event.data.scheme !== scheme && event.data.scheme !== 'all') {
-        return;
-      }
-      runDemo();
-    });
 
     Module = {
       onRuntimeInitialized: function() {
@@ -92,7 +75,7 @@
     appendBadges();
 
     const script = document.createElement('script');
-    script.src = `../output/${debugMode}/cmake_demo.js`;
+    script.src = `../output/${debugMode}/cmake_tools_demo.js`;
     document.body.appendChild(script);
   </script>
 </body>

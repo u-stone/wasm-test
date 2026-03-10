@@ -23,9 +23,9 @@ try {
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
     & emcmake cmake -S . -B $buildDir "-DWASM_DEBUG_MODE=$mode"
-    & cmake --build $buildDir --target cmake_demo
+    & cmake --build $buildDir
 
-    Write-Host "Built demos/05-cmake-emcmake/output/$mode/cmake_demo.js"
+    Write-Host "Built demos/05-cmake-emcmake/output/$mode/cmake_demo.js and cmake_tools_demo.js"
   }
 }
 finally {

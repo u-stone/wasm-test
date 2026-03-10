@@ -201,11 +201,12 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 4. `WASM_SOURCE_MAP_TARGET_SEGMENT=output`
 5. `WASM_BUILD_ID=sourcemap`
 
-这个 demo 现在可以直接用来演示三件事：
+这个 demo 现在可以直接用来演示四件事：
 
 1. `--source-map-base` 应在 CMake 内部统一管理。
 2. sourcemap URL 应由规则和元数据拼接，而不是手写长 URL。
 3. 真实项目中可以通过 CI/CD 覆盖这些变量而不改源码。
+4. 同一个公共模板模块可以服务多个 Wasm target。
 
 ## 9.1 当前模板的使用方式
 本 demo 当前的顶层 `CMakeLists.txt` 已经收敛为声明式调用：
@@ -224,6 +225,7 @@ configure_wasm_build(
 1. 顶层 CMake 只描述目标需要什么。
 2. 具体如何根据 `WASM_DEBUG_MODE` 选择 `-O2 / -g / -gsource-map`，由公共模块负责。
 3. 具体如何拼接 `--source-map-base`，也由公共模块负责。
+4. 多个 target 可以复用同一套模板函数，而不需要复制粘贴配置块。
 
 这比在每个工程里手写一组 if/else 更接近真实大项目的维护方式。
 

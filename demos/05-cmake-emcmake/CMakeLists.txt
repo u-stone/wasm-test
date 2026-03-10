@@ -34,9 +34,21 @@ set_target_properties(cmake_demo PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}"
 )
 
+set_target_properties(cmake_tools_demo PROPERTIES
+  SUFFIX ".js"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}"
+)
+
 configure_wasm_build(
   cmake_demo
   SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
   EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
+  EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
+)
+
+configure_wasm_build(
+  cmake_tools_demo
+  SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
+  EXPORTED_FUNCTIONS "[\"_run_cmake_tools_demo\"]"
   EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
 )

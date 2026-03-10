@@ -12,6 +12,7 @@ target_include_directories(cmake_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(cmake_domain STATIC
   domain/simulation.cc
+  domain/report.cc
 )
 
 target_include_directories(cmake_domain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -22,3 +23,9 @@ add_executable(cmake_demo
 )
 
 target_link_libraries(cmake_demo PRIVATE cmake_domain)
+
+add_executable(cmake_tools_demo
+  app/tools_main.cc
+)
+
+target_link_libraries(cmake_tools_demo PRIVATE cmake_domain)
