@@ -58,12 +58,19 @@
   </div>
 
   <div class="group">
-    <h2>Four Threading/Concurrency Schemes</h2>
+    <h2>Threading/Concurrency Schemes</h2>
     <ul>
       <li><a href="./demos/01-pthreads/web/index.html" data-demo-link>01 - Pthreads (SharedArrayBuffer)</a></li>
       <li><a href="./demos/02-asyncify/web/index.html" data-demo-link>02 - Asyncify (Cooperative Yield)</a></li>
       <li><a href="./demos/03-manual-workers/web/index.html" data-demo-link>03 - Manual Web Workers (Message Passing)</a></li>
       <li><a href="./demos/04-cpp20-coroutine/web/index.html" data-demo-link>04 - C++20 Coroutine (Single-threaded cooperative)</a></li>
+    </ul>
+  </div>
+
+  <div class="group">
+    <h2>Engineering Practice Demo</h2>
+    <ul>
+      <li><a href="./demos/05-cmake-emcmake/web/index.html" data-demo-link>05 - CMake + emcmake (Large-project style build)</a></li>
     </ul>
   </div>
 
@@ -80,6 +87,8 @@
     <p>Build all demos with:</p>
     <pre><code>powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1</code></pre>
     <pre><code>powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode all</code></pre>
+    <p>Build only the CMake workflow demo:</p>
+    <pre><code>powershell -ExecutionPolicy Bypass -File demos/05-cmake-emcmake/build.ps1 -DebugMode all</code></pre>
   </div>
 
   <div class="group">

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>05 - CMake + emcmake Workflow</title>
+</head>
+<body>
+  <h1>05 - CMake + emcmake Workflow</h1>
+  <p>This demo is built by <code>emcmake + cmake --build</code>, not by calling <code>em++</code> directly.</p>
+  <button id="run" disabled>Run CMake Demo</button>
+
+  <script>
+    const scheme = 'cmake-emcmake';
+    const requiresIsolation = false;
+    let runtimeReady = false;
+    let runStart = 0;
+    const params = new URLSearchParams(window.location.search);
+    const debugMode = params.get('debug') || localStorage.getItem('wasmDebugMode') || 'release';
+
+    function appendBadges() {
+      const mode = document.createElement('p');
+      mode.textContent = `Debug mode: ${debugMode}`;
+      document.body.insertBefore(mode, document.getElementById('run'));
+
+      const env = document.createElement('p');
+      env.textContent = `Requirement: COOP/COEP not required | crossOriginIsolated=${window.crossOriginIsolated}`;
+      env.style.color = '#2a8a3e';
+      document.body.insertBefore(env, document.getElementById('run'));
+    }
+
+    function emit(event, payload) {
+      window.parent.postMessage(Object.assign({
+        source: 'wasm-demo',
+        scheme,
+        event,
+        ts: performance.now()
+      }, payload || {}), '*');
+    }
+
+    function runDemo() {
+      if (!runtimeReady) {
+        return;
+      }
+      runStart = performance.now();
+      emit('run-start');
+      Module.ccall('run_cmake_demo', null, [], []);
+    }
+
+    const rawLog = console.log.bind(console);
+    console.log = function() {
+      const original = Array.from(arguments).join(' ');
+      const message = original.startsWith('[LOG]')
+        ? original
+        : `[LOG][scheme=${scheme}][source=js] ${original}`;
+
+      emit('log', { message });
+      if (original.indexOf('event=run_complete') >= 0) {
+        emit('run-end', { durationMs: performance.now() - runStart });
+      }
+      rawLog(message);
+    };
+
+    window.addEventListener('message', function(event) {
+      if (!event.data || event.data.type !== 'run-demo') {
+        return;
+      }
+      if (event.data.scheme !== scheme && event.data.scheme !== 'all') {
+        return;
+      }
+      runDemo();
+    });
+
+    Module = {
+      onRuntimeInitialized: function() {
+        runtimeReady = true;
+        document.getElementById('run').disabled = false;
+        console.log('event=wasm_ready');
+        emit('ready');
+      }
+    };
+
+    if (requiresIsolation && !window.crossOriginIsolated) {
+      emit('warning', { message: 'This scheme requires COOP/COEP.' });
+    }
+
+    document.getElementById('run').addEventListener('click', runDemo);
+    appendBadges();
+
+    const script = document.createElement('script');
+    script.src = `../output/${debugMode}/cmake_demo.js`;
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>

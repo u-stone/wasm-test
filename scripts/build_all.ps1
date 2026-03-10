@@ -12,6 +12,7 @@ try {
     'demos/02-asyncify/build.ps1',
     'demos/03-manual-workers/build.ps1',
     'demos/04-cpp20-coroutine/build.ps1',
+    'demos/05-cmake-emcmake/build.ps1',
     'demos/extra-interop/closure/build.ps1',
     'demos/extra-interop/type-conversion/build.ps1'
   )

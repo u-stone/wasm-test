@@ -1,3 +1,4 @@
 # Generated build outputs
 # Keep wasm/js artifacts local; do not version control compiled outputs.
 demos/**/output/
+demos/**/build/
