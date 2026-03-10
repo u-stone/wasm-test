@@ -9,7 +9,7 @@ set(WASM_DEBUG_FLAGS "-O2" CACHE STRING "Flags passed to emcc/em++")
 
 separate_arguments(WASM_DEBUG_FLAGS_LIST NATIVE_COMMAND "${WASM_DEBUG_FLAGS}")
 
-add_executable(cmake_demo src/main.cc)
+add_subdirectory(src)
 
 set_target_properties(cmake_demo PROPERTIES
   SUFFIX ".js"
