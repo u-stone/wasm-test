@@ -8,6 +8,7 @@
   <h1>05 - CMake + emcmake Workflow</h1>
   <p>This demo is built by <code>emcmake + cmake --build</code>, not by calling <code>em++</code> directly.</p>
   <p>Project layout is split into <code>app</code>, <code>domain</code>, <code>core</code>, and <code>platform</code> targets to mimic large-project CMake organization.</p>
+  <p>Sourcemap URLs are composed from <code>WASM_SOURCE_MAP_ROOT</code>, <code>WASM_ENV</code>, <code>WASM_PROJECT</code>, <code>WASM_BUILD_ID</code>, and <code>WASM_SOURCE_MAP_TARGET_SEGMENT</code> via a shared CMake module.</p>
   <button id="run" disabled>Run CMake Demo</button>
 
   <script>

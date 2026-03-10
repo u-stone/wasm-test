@@ -170,24 +170,41 @@ emcmake cmake -S . -B build/sourcemap \
 3. 可以避免把源码映射暴露到公开 CDN。
 
 ## 9. 本仓库中的 demo 如何对应到大型工程实践
-本仓库中的 `demos/05-cmake-emcmake/` 目前已经把 `--source-map-base` 收口到 `CMakeLists.txt` 中，并使用：
+本仓库中的 `demos/05-cmake-emcmake/` 已经升级为模板化实现，当前使用以下变量：
 
 ```cmake
-WASM_SOURCE_MAP_BASE
+WASM_SOURCE_MAP_ROOT
+WASM_ENV
+WASM_PROJECT
+WASM_BUILD_ID
+WASM_SOURCE_MAP_TARGET_SEGMENT
 ```
 
-作为简化版演示变量。这个 demo 适合说明两件事：
+并通过公共模块：
 
-1. `--source-map-base` 应在 CMake 内部管理，而不是散落在外部脚本中。
-2. sourcemap 配置应通过变量注入而不是硬编码在多处。
+```cmake
+cmake/WasmSourceMap.cmake
+```
 
-如果继续演进到企业级模板，可进一步升级为：
+来统一拼接与注入 `--source-map-base`。当前 demo 的默认值被设计为与本地目录结构一致：
 
-1. `WASM_SOURCE_MAP_ROOT`
-2. `WASM_ENV`
-3. `WASM_PROJECT`
-4. `WASM_BUILD_ID`
-5. 统一的公共 CMake 函数
+```text
+http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
+```
+
+其对应关系为：
+
+1. `WASM_SOURCE_MAP_ROOT=http://localhost:8000`
+2. `WASM_ENV=demos`
+3. `WASM_PROJECT=05-cmake-emcmake`
+4. `WASM_SOURCE_MAP_TARGET_SEGMENT=output`
+5. `WASM_BUILD_ID=sourcemap`
+
+这个 demo 现在可以直接用来演示三件事：
+
+1. `--source-map-base` 应在 CMake 内部统一管理。
+2. sourcemap URL 应由规则和元数据拼接，而不是手写长 URL。
+3. 真实项目中可以通过 CI/CD 覆盖这些变量而不改源码。
 
 ## 10. 推荐落地方案
 对于大型项目，建议按以下优先级落地：
