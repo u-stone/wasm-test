@@ -43,20 +43,20 @@
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(WasmBuild)
 
-set(WASM_DEBUG_MODE "sourcemap" CACHE STRING "release, dwarf, sourcemap")
-set(WASM_SOURCE_MAP_ROOT "http://localhost:8000" CACHE STRING "Base URL used by source maps")
-set(WASM_ENV "demos" CACHE STRING "Top-level environment segment used in source map URLs")
-set(WASM_PROJECT "05-cmake-emcmake" CACHE STRING "Project segment used in source map URLs")
-set(WASM_BUILD_ID "sourcemap" CACHE STRING "Build identifier used in source map URLs")
-set(WASM_SOURCE_MAP_TARGET_SEGMENT "output" CACHE STRING "Target-specific path segment used in sourcemap URLs")
+initialize_wasm_build_defaults(
+   DEBUG_MODE "sourcemap"
+   SOURCE_MAP_ROOT "http://localhost:8000"
+   ENV "demos"
+   PROJECT_SEGMENT "05-cmake-emcmake"
+   BUILD_ID "sourcemap"
+   TARGET_SEGMENT "output"
+)
 
 print_wasm_build_summary()
 add_subdirectory(src)
 
 configure_wasm_build(
   cmake_demo
-  OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}"
-  SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
   EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
   EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
 )
@@ -81,6 +81,7 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 
 1. 静态库 target 用 `apply_wasm_compile_options(target)`。
 2. 最终 Wasm 可执行 target 用 `configure_wasm_build(target ...)`。
+3. 顶层默认变量用 `initialize_wasm_build_defaults(...)` 初始化，而不是在 `CMakeLists.txt` 中散落多组 `set(... CACHE ...)`。
 
 ## 4. `WasmBuild.cmake` API 说明
 
@@ -135,6 +136,7 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 1. `OUTPUT_DIRECTORY`
    - 最终产物输出目录。
    - 会映射到 `RUNTIME_OUTPUT_DIRECTORY`。
+   - 如果不传，默认使用 `${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}`。
 
 2. `TARGET_SUFFIX`
    - 最终产物后缀。
@@ -144,6 +146,7 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 3. `SOURCE_MAP_TARGET_SEGMENT`
    - sourcemap URL 中的 target 路径段。
    - 会传给 `configure_wasm_sourcemap(...)`。
+   - 如果不传，默认使用全局 `WASM_SOURCE_MAP_TARGET_SEGMENT`。
 
 4. `EXPORTED_FUNCTIONS`
    - 透传为 `-sEXPORTED_FUNCTIONS=...`。
@@ -172,6 +175,25 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 2. 编译参数
 3. 链接参数
 4. sourcemap 相关变量
+
+### 4.6 `initialize_wasm_build_defaults(...)`
+
+这个函数用于把原本散落在顶层 `CMakeLists.txt` 里的默认变量初始化收口到模块内部。
+
+支持的参数：
+
+1. `DEBUG_MODE`
+2. `SOURCE_MAP_ROOT`
+3. `ENV`
+4. `PROJECT_SEGMENT`
+5. `BUILD_ID`
+6. `TARGET_SEGMENT`
+
+设计原则是：
+
+1. 提供模块级默认值，降低顶层 `CMakeLists.txt` 对底层变量名的直接依赖。
+2. 继续保留 `-DWASM_DEBUG_MODE=...`、`-DWASM_SOURCE_MAP_ROOT=...` 这类外部覆盖能力。
+3. 对真实项目来说，顶层通常只需要在这里声明少量项目特有的默认值。
 
 ## 5. `WasmSourceMap.cmake` API 说明
 
@@ -214,6 +236,20 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
    - `--source-map-base=<computed-url>`
 4. 同时打印 `WASM_SOURCE_MAP_BASE(target)=...` 便于核对。
 
+### 5.3 `initialize_wasm_sourcemap_defaults(...)`
+
+这个函数负责初始化 sourcemap 相关缓存变量，避免调用方手动逐个 `set(... CACHE ...)`。
+
+支持的参数：
+
+1. `SOURCE_MAP_ROOT`
+2. `ENV`
+3. `PROJECT_SEGMENT`
+4. `BUILD_ID`
+5. `TARGET_SEGMENT`
+
+如果外部已经通过 `-D...` 传入同名 cache 变量，CMake cache 值仍然会优先生效。
+
 ## 6. 变量约定
 
 这两个模块依赖的关键变量如下。
@@ -246,6 +282,8 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 
 1. 本地开发可以直接 `-D...` 覆盖。
 2. CI/CD 也可以从外部注入。
+
+当前模板已经把这些 `CACHE STRING` 的初始化逻辑封装在模块函数里，顶层只需要提供项目级默认值。
 
 ## 7. 推荐使用模式
 

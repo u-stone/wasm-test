@@ -3,6 +3,30 @@ include_guard(GLOBAL)
 include(CMakeParseArguments)
 include(WasmSourceMap)
 
+function(initialize_wasm_build_defaults)
+  set(options)
+  set(oneValueArgs DEBUG_MODE SOURCE_MAP_ROOT ENV PROJECT_SEGMENT BUILD_ID TARGET_SEGMENT)
+  cmake_parse_arguments(WASM_BUILD_INIT "${options}" "${oneValueArgs}" "" ${ARGN})
+
+  set(default_debug_mode "release")
+  if(NOT WASM_BUILD_INIT_DEBUG_MODE STREQUAL "")
+    set(default_debug_mode "${WASM_BUILD_INIT_DEBUG_MODE}")
+  elseif(DEFINED WASM_DEBUG_MODE AND NOT WASM_DEBUG_MODE STREQUAL "")
+    set(default_debug_mode "${WASM_DEBUG_MODE}")
+  endif()
+
+  set(WASM_DEBUG_MODE "${default_debug_mode}" CACHE STRING "Build mode folder name")
+  set_property(CACHE WASM_DEBUG_MODE PROPERTY STRINGS release dwarf sourcemap)
+
+  initialize_wasm_sourcemap_defaults(
+    SOURCE_MAP_ROOT "${WASM_BUILD_INIT_SOURCE_MAP_ROOT}"
+    ENV "${WASM_BUILD_INIT_ENV}"
+    PROJECT_SEGMENT "${WASM_BUILD_INIT_PROJECT_SEGMENT}"
+    BUILD_ID "${WASM_BUILD_INIT_BUILD_ID}"
+    TARGET_SEGMENT "${WASM_BUILD_INIT_TARGET_SEGMENT}"
+  )
+endfunction()
+
 function(get_wasm_compile_flags out_var)
   set(compile_flags)
 
@@ -59,10 +83,20 @@ function(configure_wasm_build target)
     set(target_suffix "${WASM_BUILD_TARGET_SUFFIX}")
   endif()
 
-  set_target_properties(${target} PROPERTIES SUFFIX "${target_suffix}")
+  set(output_directory "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}")
   if(NOT WASM_BUILD_OUTPUT_DIRECTORY STREQUAL "")
+    set(output_directory "${WASM_BUILD_OUTPUT_DIRECTORY}")
+  endif()
+
+  set(source_map_target_segment "${WASM_SOURCE_MAP_TARGET_SEGMENT}")
+  if(NOT WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT STREQUAL "")
+    set(source_map_target_segment "${WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT}")
+  endif()
+
+  set_target_properties(${target} PROPERTIES SUFFIX "${target_suffix}")
+  if(NOT output_directory STREQUAL "")
     set_target_properties(${target} PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY "${WASM_BUILD_OUTPUT_DIRECTORY}"
+      RUNTIME_OUTPUT_DIRECTORY "${output_directory}"
     )
   endif()
 
@@ -79,8 +113,8 @@ function(configure_wasm_build target)
 
   target_link_options(${target} PRIVATE ${link_flags})
 
-  if(NOT WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT STREQUAL "")
-    configure_wasm_sourcemap(${target} "${WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT}")
+  if(NOT source_map_target_segment STREQUAL "")
+    configure_wasm_sourcemap(${target} "${source_map_target_segment}")
   endif()
 endfunction()
 
