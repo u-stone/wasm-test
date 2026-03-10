@@ -1,3 +1,6 @@
+include_guard(GLOBAL)
+
+include(CMakeParseArguments)
 include(WasmSourceMap)
 
 function(get_wasm_compile_flags out_var)

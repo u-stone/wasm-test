@@ -1,3 +1,5 @@
+include_guard(GLOBAL)
+
 function(_wasm_trim_slashes input output)
   set(value "${input}")
   string(REGEX REPLACE "^/+" "" value "${value}")
