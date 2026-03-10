@@ -6,9 +6,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WASM_DEBUG_MODE "release" CACHE STRING "Build mode folder name")
 set_property(CACHE WASM_DEBUG_MODE PROPERTY STRINGS release dwarf sourcemap)
+set(
+  WASM_SOURCE_MAP_BASE
+  "http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/"
+  CACHE STRING
+  "Base URL used for --source-map-base when WASM_DEBUG_MODE=sourcemap"
+)
 
 set(WASM_COMPILE_FLAGS)
 set(WASM_LINK_FLAGS)
+set(WASM_SOURCE_MAP_BASE_NORMALIZED "${WASM_SOURCE_MAP_BASE}")
+
+if(NOT WASM_SOURCE_MAP_BASE_NORMALIZED STREQUAL "")
+  if(NOT WASM_SOURCE_MAP_BASE_NORMALIZED MATCHES "/$")
+    string(APPEND WASM_SOURCE_MAP_BASE_NORMALIZED "/")
+  endif()
+endif()
 
 if(WASM_DEBUG_MODE STREQUAL "release")
   list(APPEND WASM_COMPILE_FLAGS -O2)
@@ -19,8 +32,16 @@ elseif(WASM_DEBUG_MODE STREQUAL "dwarf")
 elseif(WASM_DEBUG_MODE STREQUAL "sourcemap")
   list(APPEND WASM_COMPILE_FLAGS -O1)
   list(APPEND WASM_LINK_FLAGS -O1 -gsource-map)
+  if(NOT WASM_SOURCE_MAP_BASE_NORMALIZED STREQUAL "")
+    list(APPEND WASM_LINK_FLAGS "--source-map-base=${WASM_SOURCE_MAP_BASE_NORMALIZED}")
+  endif()
 else()
   message(FATAL_ERROR "Unsupported WASM_DEBUG_MODE: ${WASM_DEBUG_MODE}")
+endif()
+
+message(STATUS "WASM_DEBUG_MODE=${WASM_DEBUG_MODE}")
+if(WASM_DEBUG_MODE STREQUAL "sourcemap")
+  message(STATUS "WASM_SOURCE_MAP_BASE=${WASM_SOURCE_MAP_BASE_NORMALIZED}")
 endif()
 
 add_compile_options(${WASM_COMPILE_FLAGS})
