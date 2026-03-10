@@ -241,3 +241,56 @@ configure_wasm_build(
 1. 配置集中，维护成本低。
 2. 多 target 与多版本可追溯。
 3. DevTools 中的源码映射更稳定、可复现、可排障。
+
+## 11. 为什么不加 --source-map-base 也可能看到源码
+这是一个常见误区。`--source-map-base` 不是“是否开启源码调试”的开关，而是“浏览器用哪个 URL 基准去理解 sourcemap 资源”的配置。
+
+在以下情况下，即使不加 `--source-map-base`，DevTools 也可能仍然能看到 C++ 源码：
+
+1. `*.wasm`、`*.wasm.map` 与源码引用的相对路径刚好可以被浏览器推导出来。
+2. `sources` 字段里的相对路径相对于 map 文件位置是可达的。
+3. 浏览器当前页面 URL 与静态资源目录结构刚好一致。
+
+因此“不加也能调试”并不说明该参数没有价值，只说明当前 demo 或部署结构恰好足够简单，浏览器可以自行推导。
+
+## 12. 为什么加了 --source-map-base 后 Sources > Page 的树会变化
+DevTools 不是按磁盘路径组织文件，而是按浏览器理解出来的 URL 归属来组织文件。
+
+1. 不加 `--source-map-base` 时，DevTools 通常按 `*.wasm` 或 `*.wasm.map` 的相对位置去推导源码归属。
+2. 加上 `--source-map-base` 后，DevTools 会优先按你显式提供的 URL 基准组织源码。
+
+所以常见现象是：
+
+1. 源码仍然能打开，但目录树位置变了。
+2. `Sources > Page` 里的路径更接近你部署时的 URL 结构。
+3. 多 target、多环境时，源码归属更稳定，不容易混在一起。
+
+## 13. 本仓库修复过的一个真实问题：为什么 map 文件存在，但 DevTools 里看不到业务源码
+这个仓库的 `05-cmake-emcmake` 在模板演进过程中出现过一个典型问题：
+
+1. `-gsource-map` 只加到了最终可执行 target 的链接阶段。
+2. 业务代码位于 `cmake_core`、`cmake_domain`、`cmake_platform` 等静态库中。
+3. 这些库在编译时没有统一带 `-g`，导致 object 文件里缺少足够的调试信息。
+
+结果就是：
+
+1. `cmake_demo.wasm.map` 文件会生成。
+2. DevTools 中可能能看到系统库源码。
+3. 但看不到项目自己的 `app/domain/core/platform` 源码，或者源码不完整。
+
+修复方式是：
+
+1. 对整个 CMake 工程统一下发编译调试参数，而不是只给最终可执行 target 设置。
+2. 在 `sourcemap` 模式下，所有编译单元都使用 `-O1 -g`。
+3. 最终链接目标再单独添加 `-gsource-map` 与 `--source-map-base`。
+
+当前模板中的 `WasmBuild.cmake` 已按这个原则实现：
+
+1. `apply_wasm_global_compile_options()` 负责给所有 target 统一添加编译参数。
+2. `configure_wasm_build(...)` 负责给最终 Wasm target 添加链接参数与 sourcemap 规则。
+
+这也是大型项目里更稳妥的做法：
+
+1. 编译调试信息是全工程问题。
+2. `--source-map-base` 是最终链接与部署映射问题。
+3. 两者不能混为一谈。

@@ -26,6 +26,7 @@ set(
 )
 
 print_wasm_build_summary()
+apply_wasm_global_compile_options()
 
 add_subdirectory(src)
 
