@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(WasmSourceMap)
+include(WasmBuild)
 
 set(WASM_DEBUG_MODE "release" CACHE STRING "Build mode folder name")
 set_property(CACHE WASM_DEBUG_MODE PROPERTY STRINGS release dwarf sourcemap)
@@ -25,32 +25,7 @@ set(
   "Target-specific path segment used in sourcemap URLs"
 )
 
-set(WASM_COMPILE_FLAGS)
-set(WASM_LINK_FLAGS)
-
-if(WASM_DEBUG_MODE STREQUAL "release")
-  list(APPEND WASM_COMPILE_FLAGS -O2)
-  list(APPEND WASM_LINK_FLAGS -O2)
-elseif(WASM_DEBUG_MODE STREQUAL "dwarf")
-  list(APPEND WASM_COMPILE_FLAGS -O0 -g)
-  list(APPEND WASM_LINK_FLAGS -O0 -g)
-elseif(WASM_DEBUG_MODE STREQUAL "sourcemap")
-  list(APPEND WASM_COMPILE_FLAGS -O1)
-  list(APPEND WASM_LINK_FLAGS -O1)
-else()
-  message(FATAL_ERROR "Unsupported WASM_DEBUG_MODE: ${WASM_DEBUG_MODE}")
-endif()
-
-message(STATUS "WASM_DEBUG_MODE=${WASM_DEBUG_MODE}")
-if(WASM_DEBUG_MODE STREQUAL "sourcemap")
-  message(STATUS "WASM_SOURCE_MAP_ROOT=${WASM_SOURCE_MAP_ROOT}")
-  message(STATUS "WASM_ENV=${WASM_ENV}")
-  message(STATUS "WASM_PROJECT=${WASM_PROJECT}")
-  message(STATUS "WASM_BUILD_ID=${WASM_BUILD_ID}")
-  message(STATUS "WASM_SOURCE_MAP_TARGET_SEGMENT=${WASM_SOURCE_MAP_TARGET_SEGMENT}")
-endif()
-
-add_compile_options(${WASM_COMPILE_FLAGS})
+print_wasm_build_summary()
 
 add_subdirectory(src)
 
@@ -59,10 +34,9 @@ set_target_properties(cmake_demo PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}"
 )
 
-target_link_options(cmake_demo PRIVATE
-  ${WASM_LINK_FLAGS}
-  "-sEXPORTED_FUNCTIONS=[\"_run_cmake_demo\"]"
-  "-sEXPORTED_RUNTIME_METHODS=[\"ccall\"]"
+configure_wasm_build(
+  cmake_demo
+  SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
+  EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
+  EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
 )
-
-configure_wasm_sourcemap(cmake_demo "${WASM_SOURCE_MAP_TARGET_SEGMENT}")

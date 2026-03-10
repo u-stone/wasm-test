@@ -184,9 +184,10 @@ WASM_SOURCE_MAP_TARGET_SEGMENT
 
 ```cmake
 cmake/WasmSourceMap.cmake
+cmake/WasmBuild.cmake
 ```
 
-来统一拼接与注入 `--source-map-base`。当前 demo 的默认值被设计为与本地目录结构一致：
+来统一拼接与注入 `--source-map-base`，并把调试模式、编译参数、链接参数、导出函数配置统一封装到 `configure_wasm_build(...)`。当前 demo 的默认值被设计为与本地目录结构一致：
 
 ```text
 http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
@@ -205,6 +206,26 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 1. `--source-map-base` 应在 CMake 内部统一管理。
 2. sourcemap URL 应由规则和元数据拼接，而不是手写长 URL。
 3. 真实项目中可以通过 CI/CD 覆盖这些变量而不改源码。
+
+## 9.1 当前模板的使用方式
+本 demo 当前的顶层 `CMakeLists.txt` 已经收敛为声明式调用：
+
+```cmake
+configure_wasm_build(
+  cmake_demo
+  SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
+  EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
+  EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
+)
+```
+
+这意味着真实项目里：
+
+1. 顶层 CMake 只描述目标需要什么。
+2. 具体如何根据 `WASM_DEBUG_MODE` 选择 `-O2 / -g / -gsource-map`，由公共模块负责。
+3. 具体如何拼接 `--source-map-base`，也由公共模块负责。
+
+这比在每个工程里手写一组 if/else 更接近真实大项目的维护方式。
 
 ## 10. 推荐落地方案
 对于大型项目，建议按以下优先级落地：
