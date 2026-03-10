@@ -47,11 +47,23 @@ endfunction()
 
 function(configure_wasm_build target)
   set(options)
-  set(oneValueArgs SOURCE_MAP_TARGET_SEGMENT EXPORTED_FUNCTIONS EXPORTED_RUNTIME_METHODS)
+  set(oneValueArgs SOURCE_MAP_TARGET_SEGMENT EXPORTED_FUNCTIONS EXPORTED_RUNTIME_METHODS OUTPUT_DIRECTORY TARGET_SUFFIX)
   cmake_parse_arguments(WASM_BUILD "${options}" "${oneValueArgs}" "" ${ARGN})
 
   if(NOT TARGET ${target})
     message(FATAL_ERROR "configure_wasm_build: target '${target}' does not exist")
+  endif()
+
+  set(target_suffix ".js")
+  if(NOT WASM_BUILD_TARGET_SUFFIX STREQUAL "")
+    set(target_suffix "${WASM_BUILD_TARGET_SUFFIX}")
+  endif()
+
+  set_target_properties(${target} PROPERTIES SUFFIX "${target_suffix}")
+  if(NOT WASM_BUILD_OUTPUT_DIRECTORY STREQUAL "")
+    set_target_properties(${target} PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${WASM_BUILD_OUTPUT_DIRECTORY}"
+    )
   endif()
 
   apply_wasm_compile_options(${target})

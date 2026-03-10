@@ -115,7 +115,8 @@ python .\server.py
   - 编译阶段：对整个 CMake 工程统一下发调试编译参数。
   - 链接阶段：只对最终 wasm 目标添加 `-gsource-map` 和 `--source-map-base`。
 - 本项目中的修复方式：
-  - `demos/05-cmake-emcmake/cmake/WasmBuild.cmake` 中新增 `apply_wasm_global_compile_options()`。
+  - `demos/05-cmake-emcmake/cmake/WasmBuild.cmake` 中提供 `apply_wasm_compile_options(target)`。
+  - `demos/05-cmake-emcmake/src/CMakeLists.txt` 中对 `cmake_core`、`cmake_platform`、`cmake_domain` 显式应用编译调试参数。
   - `sourcemap` 模式下，编译参数使用 `-O1 -g`，链接参数使用 `-O1`，最终目标再补 `-gsource-map`。
 - 快速验证方法：
   - 打开 `demos/05-cmake-emcmake/output/sourcemap/*.wasm.map`。

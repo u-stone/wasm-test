@@ -214,6 +214,7 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 ```cmake
 configure_wasm_build(
   cmake_demo
+  OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}"
   SOURCE_MAP_TARGET_SEGMENT "${WASM_SOURCE_MAP_TARGET_SEGMENT}"
   EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
   EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
@@ -223,9 +224,10 @@ configure_wasm_build(
 这意味着真实项目里：
 
 1. 顶层 CMake 只描述目标需要什么。
-2. 具体如何根据 `WASM_DEBUG_MODE` 选择 `-O2 / -g / -gsource-map`，由公共模块负责。
-3. 具体如何拼接 `--source-map-base`，也由公共模块负责。
-4. 多个 target 可以复用同一套模板函数，而不需要复制粘贴配置块。
+2. 目标输出目录、后缀、导出函数等目标属性也由公共模块负责。
+3. 具体如何根据 `WASM_DEBUG_MODE` 选择 `-O2 / -g / -gsource-map`，由公共模块负责。
+4. 具体如何拼接 `--source-map-base`，也由公共模块负责。
+5. 多个 target 可以复用同一套模板函数，而不需要复制粘贴配置块。
 
 这比在每个工程里手写一组 if/else 更接近真实大项目的维护方式。
 
@@ -286,8 +288,8 @@ DevTools 不是按磁盘路径组织文件，而是按浏览器理解出来的 U
 
 当前模板中的 `WasmBuild.cmake` 已按这个原则实现：
 
-1. `apply_wasm_global_compile_options()` 负责给所有 target 统一添加编译参数。
-2. `configure_wasm_build(...)` 负责给最终 Wasm target 添加链接参数与 sourcemap 规则。
+1. `apply_wasm_compile_options(target)` 负责按 target 显式添加编译参数。
+2. `configure_wasm_build(...)` 负责给最终 Wasm target 统一配置目标属性、链接参数与 sourcemap 规则。
 
 这也是大型项目里更稳妥的做法：
 
