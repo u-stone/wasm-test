@@ -33,9 +33,13 @@ function(get_wasm_link_flags out_var)
   set(${out_var} "${link_flags}" PARENT_SCOPE)
 endfunction()
 
-function(apply_wasm_global_compile_options)
+function(apply_wasm_compile_options target)
+  if(NOT TARGET ${target})
+    message(FATAL_ERROR "apply_wasm_compile_options: target '${target}' does not exist")
+  endif()
+
   get_wasm_compile_flags(compile_flags)
-  add_compile_options(${compile_flags})
+  target_compile_options(${target} PRIVATE ${compile_flags})
 endfunction()
 
 function(configure_wasm_build target)
@@ -47,6 +51,7 @@ function(configure_wasm_build target)
     message(FATAL_ERROR "configure_wasm_build: target '${target}' does not exist")
   endif()
 
+  apply_wasm_compile_options(${target})
   get_wasm_link_flags(link_flags)
 
   if(NOT WASM_BUILD_EXPORTED_FUNCTIONS STREQUAL "")
