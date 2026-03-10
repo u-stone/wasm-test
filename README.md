@@ -21,6 +21,16 @@ powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode dwarf
 powershell -ExecutionPolicy Bypass -File scripts/build_all.ps1 -DebugMode sourcemap
 ```
 
+- `05-cmake-emcmake` 单独构建并做产物自检：
+```powershell
+powershell -ExecutionPolicy Bypass -File demos/05-cmake-emcmake/build.ps1 -DebugMode all
+```
+
+这个脚本除了构建，还会自动检查：
+- `cmake_demo` / `cmake_tools_demo` 的 `.js` 与 `.wasm` 是否生成
+- `sourcemap` 模式下的 `.wasm.map` 是否生成
+- `*.wasm.map` 里是否包含 `app/domain/core/platform` 的业务源码条目
+
 ## 调试模式
 页面支持三种 `debug` 模式，优先级如下：
 1. URL 参数 `?debug=...`

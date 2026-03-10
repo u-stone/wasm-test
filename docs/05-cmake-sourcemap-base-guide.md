@@ -296,3 +296,22 @@ DevTools 不是按磁盘路径组织文件，而是按浏览器理解出来的 U
 1. 编译调试信息是全工程问题。
 2. `--source-map-base` 是最终链接与部署映射问题。
 3. 两者不能混为一谈。
+
+## 14. 给模板补一层构建后自检
+真实项目里，只有“构建成功”通常还不够。对于 sourcemap 问题，更常见的失败方式是：
+
+1. `*.js` 生成了，但 `*.wasm` 或 `*.wasm.map` 漏了。
+2. `*.wasm.map` 存在，但里面只有系统库源码，没有业务源码。
+3. 多 target 场景中，一个 target 正常，另一个 target 的 sourcemap 已经退化。
+
+因此这个仓库现在把自检放进了 `demos/05-cmake-emcmake/build.ps1`：
+
+1. 所有模式都会验证 `cmake_demo` 与 `cmake_tools_demo` 的 `.js` 和 `.wasm` 已生成。
+2. `sourcemap` 模式会额外验证 `.wasm.map` 已生成。
+3. `sourcemap` 模式会进一步检查 map 中是否包含 `app/domain/core/platform` 的业务源码条目。
+
+这层检查的价值在于：
+
+1. 当模板重构导致 target 属性、输出目录或链接参数回归时，构建阶段就能直接报错。
+2. 当编译参数没有正确下发到静态库 target 时，也能在 CI 或本地脚本里尽早发现。
+3. 多 Wasm target 共用模板时，可以把“是否真的还能调试业务源码”纳入自动验证，而不必每次都手工打开 DevTools。
