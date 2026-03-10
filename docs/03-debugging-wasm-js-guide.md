@@ -105,6 +105,23 @@ python .\server.py
   - 实现位置：`demos/01-pthreads/src/main.cc` 中 `logOnMainThread(...)`。
   - 结果：`thread_done` 可被页面日志系统与 compare 面板统一采集。
 
+### CMake 多 target 项目里有 `.wasm.map`，但 DevTools 看不到业务源码
+- 典型现象：`sourcemap` 模式下能生成 `*.wasm.map`，但 DevTools 里只看到系统库源码，看不到自己项目的 `app/domain/core/platform` 源码。
+- 常见根因：
+  - 只有最终 wasm 可执行 target 在链接阶段添加了 `-gsource-map`。
+  - 业务代码实际位于静态库 target 中。
+  - 这些静态库在编译阶段没有统一带 `-g`，导致 object 文件缺少足够调试信息。
+- 修复原则：
+  - 编译阶段：对整个 CMake 工程统一下发调试编译参数。
+  - 链接阶段：只对最终 wasm 目标添加 `-gsource-map` 和 `--source-map-base`。
+- 本项目中的修复方式：
+  - `demos/05-cmake-emcmake/cmake/WasmBuild.cmake` 中新增 `apply_wasm_global_compile_options()`。
+  - `sourcemap` 模式下，编译参数使用 `-O1 -g`，链接参数使用 `-O1`，最终目标再补 `-gsource-map`。
+- 快速验证方法：
+  - 打开 `demos/05-cmake-emcmake/output/sourcemap/*.wasm.map`。
+  - 检查 `sources` 字段里是否出现 `src/app/*.cc`、`src/domain/*.cc`、`src/core/*.cc`、`src/platform/*.cc`。
+  - 如果只有系统库源码而没有业务源码，通常就是“编译单元未统一带调试信息”的问题。
+
 ## 8. Worker DevTools 上下文切换（看 worker console）
 1. 打开 DevTools（F12）。
 2. 在 DevTools 顶部的执行上下文下拉框（通常显示 `top`）切到目标 worker。
