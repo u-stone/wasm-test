@@ -55,4 +55,5 @@ powershell -ExecutionPolicy Bypass -File demos/05-cmake-emcmake/build.ps1 -Debug
 - `docs/03-debugging-wasm-js-guide.md`：Wasm + JS 调试方法
 - `docs/04-technical-whitepaper.md`：技术白皮书（背景与方案全景）
 - `docs/05-cmake-sourcemap-base-guide.md`：大型 CMake 工程中的 source-map-base 管理策略
+- `docs/06-cmake-helper-modules-developer-guide.md`：`WasmBuild.cmake` 与 `WasmSourceMap.cmake` 的开发者使用文档
 - `requirements.txt`：Python 依赖声明（当前仅标准库）
