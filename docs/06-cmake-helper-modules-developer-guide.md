@@ -164,6 +164,19 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 4. 对最终 target 应用链接参数。
 5. 按需添加导出函数与 runtime methods。
 6. 在 `sourcemap` 模式下调用 `configure_wasm_sourcemap(...)`。
+7. 在 configure 阶段打印关键产物位置。
+
+当前会打印：
+
+1. `WASM_JS_OUTPUT(target)`
+2. `WASM_BINARY_OUTPUT(target)`
+3. `WASM_SOURCE_MAP_FILE(target)`
+4. `WASM_SOURCE_MAP_URL_BASE(target)`
+
+对于使用 `emcmake + cmake` 的工程，这就是“在哪里看编译好的 sourcemap 符号位置”的最快入口：
+
+1. 本地磁盘看 `WASM_SOURCE_MAP_FILE(target)`。
+2. 浏览器 URL 归属看 `WASM_SOURCE_MAP_URL_BASE(target)`。
 
 ### 4.5 `print_wasm_build_summary()`
 
@@ -356,7 +369,21 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 5. `*.wasm.map` 中的 `sources` 字段里是否包含 `src/app`、`src/domain`、`src/core`、`src/platform`。
 6. `WASM_SOURCE_MAP_BASE(target)=...` 打印出的 URL 是否与静态服务路径一致。
 
-## 10. 当前仓库中的参考位置
+## 10. 现在可以直接从 CMake 输出里看什么
+
+当前模板已经会在 `configure_wasm_build(...)` 调用期间打印以下信息：
+
+1. `WASM_JS_OUTPUT(target)`：生成的 JS loader 本地路径。
+2. `WASM_BINARY_OUTPUT(target)`：生成的 wasm 本地路径。
+3. `WASM_SOURCE_MAP_FILE(target)`：生成的 `.wasm.map` 本地路径。
+4. `WASM_SOURCE_MAP_URL_BASE(target)`：浏览器解析 sourcemap 时使用的 URL 基准。
+
+因此，如果你想知道“编译好的 sourcemap 符号位置在哪里”，通常看两处就够了：
+
+1. 本地文件位置：`WASM_SOURCE_MAP_FILE(target)`。
+2. 浏览器使用的 URL 基准：`WASM_SOURCE_MAP_URL_BASE(target)`。
+
+## 11. 当前仓库中的参考位置
 
 可以直接参考以下文件：
 

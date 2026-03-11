@@ -9,9 +9,9 @@ function(initialize_wasm_build_defaults)
   cmake_parse_arguments(WASM_BUILD_INIT "${options}" "${oneValueArgs}" "" ${ARGN})
 
   set(default_debug_mode "release")
-  if(NOT WASM_BUILD_INIT_DEBUG_MODE STREQUAL "")
+  if(NOT "${WASM_BUILD_INIT_DEBUG_MODE}" STREQUAL "")
     set(default_debug_mode "${WASM_BUILD_INIT_DEBUG_MODE}")
-  elseif(DEFINED WASM_DEBUG_MODE AND NOT WASM_DEBUG_MODE STREQUAL "")
+  elseif(DEFINED WASM_DEBUG_MODE AND NOT "${WASM_DEBUG_MODE}" STREQUAL "")
     set(default_debug_mode "${WASM_DEBUG_MODE}")
   endif()
 
@@ -79,22 +79,22 @@ function(configure_wasm_build target)
   endif()
 
   set(target_suffix ".js")
-  if(NOT WASM_BUILD_TARGET_SUFFIX STREQUAL "")
+  if(NOT "${WASM_BUILD_TARGET_SUFFIX}" STREQUAL "")
     set(target_suffix "${WASM_BUILD_TARGET_SUFFIX}")
   endif()
 
   set(output_directory "${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}")
-  if(NOT WASM_BUILD_OUTPUT_DIRECTORY STREQUAL "")
+  if(NOT "${WASM_BUILD_OUTPUT_DIRECTORY}" STREQUAL "")
     set(output_directory "${WASM_BUILD_OUTPUT_DIRECTORY}")
   endif()
 
   set(source_map_target_segment "${WASM_SOURCE_MAP_TARGET_SEGMENT}")
-  if(NOT WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT STREQUAL "")
+  if(NOT "${WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT}" STREQUAL "")
     set(source_map_target_segment "${WASM_BUILD_SOURCE_MAP_TARGET_SEGMENT}")
   endif()
 
   set_target_properties(${target} PROPERTIES SUFFIX "${target_suffix}")
-  if(NOT output_directory STREQUAL "")
+  if(NOT "${output_directory}" STREQUAL "")
     set_target_properties(${target} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY "${output_directory}"
     )
@@ -103,18 +103,35 @@ function(configure_wasm_build target)
   apply_wasm_compile_options(${target})
   get_wasm_link_flags(link_flags)
 
-  if(NOT WASM_BUILD_EXPORTED_FUNCTIONS STREQUAL "")
+  if(NOT "${WASM_BUILD_EXPORTED_FUNCTIONS}" STREQUAL "")
     list(APPEND link_flags "-sEXPORTED_FUNCTIONS=${WASM_BUILD_EXPORTED_FUNCTIONS}")
   endif()
 
-  if(NOT WASM_BUILD_EXPORTED_RUNTIME_METHODS STREQUAL "")
+  if(NOT "${WASM_BUILD_EXPORTED_RUNTIME_METHODS}" STREQUAL "")
     list(APPEND link_flags "-sEXPORTED_RUNTIME_METHODS=${WASM_BUILD_EXPORTED_RUNTIME_METHODS}")
   endif()
 
   target_link_options(${target} PRIVATE ${link_flags})
 
-  if(NOT source_map_target_segment STREQUAL "")
+  if(NOT "${source_map_target_segment}" STREQUAL "")
     configure_wasm_sourcemap(${target} "${source_map_target_segment}")
+  endif()
+
+  message(STATUS "WASM_OUTPUT_DIRECTORY(${target})=${output_directory}")
+  set(js_output_path "${output_directory}/${target}${target_suffix}")
+  set(wasm_output_path "${output_directory}/${target}.wasm")
+  message(STATUS "WASM_JS_OUTPUT(${target})=${js_output_path}")
+  message(STATUS "WASM_BINARY_OUTPUT(${target})=${wasm_output_path}")
+
+  if(WASM_DEBUG_MODE STREQUAL "sourcemap")
+    message(STATUS "WASM_SOURCE_MAP_TARGET_SEGMENT_EFFECTIVE(${target})=${source_map_target_segment}")
+    set(map_output_path "${output_directory}/${target}.wasm.map")
+    message(STATUS "WASM_SOURCE_MAP_FILE(${target})=${map_output_path}")
+
+    wasm_compute_source_map_base(base "${source_map_target_segment}")
+    if(NOT "${base}" STREQUAL "")
+      message(STATUS "WASM_SOURCE_MAP_URL_BASE(${target})=${base}")
+    endif()
   endif()
 endfunction()
 
