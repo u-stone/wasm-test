@@ -383,7 +383,134 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 1. 本地文件位置：`WASM_SOURCE_MAP_FILE(target)`。
 2. 浏览器使用的 URL 基准：`WASM_SOURCE_MAP_URL_BASE(target)`。
 
-## 11. 当前仓库中的参考位置
+## 11. sourcemap 与 dwarf 的目录是怎么拼出来的
+
+这部分最容易混淆的点是：
+
+1. 本地生成目录
+2. 浏览器看到的 sourcemap URL 归属目录
+
+它们不是同一件事。
+
+### 11.1 先看本地产物目录
+
+在当前模板里，本地产物目录主要由 `WasmBuild.cmake` 中的 `configure_wasm_build(...)` 决定。
+
+规则是：
+
+1. 最终 Wasm target 的输出目录来自 `output_directory`。
+2. 如果没有显式传 `OUTPUT_DIRECTORY`，默认使用 `${CMAKE_SOURCE_DIR}/output/${WASM_DEBUG_MODE}`。
+3. 然后按 target 名继续拼接文件名：
+   - JS: `{output_directory}/{target}.js`
+   - Wasm: `{output_directory}/{target}.wasm`
+   - Source map: `{output_directory}/{target}.wasm.map`
+
+以本仓库默认值为例：
+
+1. `CMAKE_SOURCE_DIR = demos/05-cmake-emcmake`
+2. `WASM_DEBUG_MODE = sourcemap`
+3. target = `cmake_demo`
+
+最终本地文件会落到：
+
+1. `output/sourcemap/cmake_demo.js`
+2. `output/sourcemap/cmake_demo.wasm`
+3. `output/sourcemap/cmake_demo.wasm.map`
+
+### 11.2 再看浏览器 sourcemap URL 基准
+
+浏览器侧的 sourcemap 归属不是由本地磁盘目录决定的，而是由 `WasmSourceMap.cmake` 中的 `wasm_compute_source_map_base(...)` 决定。
+
+当前模板的拼接规则是：
+
+1. `WASM_SOURCE_MAP_ROOT`
+2. `WASM_ENV`
+3. `WASM_PROJECT`
+4. `target_segment`
+5. `WASM_BUILD_ID`
+6. 最后补一个 `/`
+
+即：
+
+```text
+{WASM_SOURCE_MAP_ROOT}/{WASM_ENV}/{WASM_PROJECT}/{target_segment}/{WASM_BUILD_ID}/
+```
+
+当前工程默认值下：
+
+1. `WASM_SOURCE_MAP_ROOT = http://localhost:8000`
+2. `WASM_ENV = demos`
+3. `WASM_PROJECT = 05-cmake-emcmake`
+4. `WASM_SOURCE_MAP_TARGET_SEGMENT = output`
+5. `WASM_BUILD_ID = sourcemap`
+
+因此浏览器端的 sourcemap URL 基准会变成：
+
+```text
+http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
+```
+
+这也是 DevTools 中源码归属最关键的地址。
+
+### 11.3 sourcemap 和 dwarf 的差异
+
+两者最本质的区别是：
+
+1. `sourcemap`
+   - 编译阶段使用 `-O1 -g`
+   - 链接阶段使用 `-O1`
+   - 最终 target 额外添加 `-gsource-map` 和 `--source-map-base=...`
+   - 会生成独立的 `.wasm.map` 文件
+   - 因此既有“本地 map 文件目录”问题，也有“浏览器 URL 归属”问题
+
+2. `dwarf`
+   - 编译阶段使用 `-O0 -g`
+   - 链接阶段使用 `-O0 -g`
+   - 不生成独立的 `.wasm.map`
+   - 调试信息主要保留在最终 `.wasm` 中
+   - 因此没有单独的 map 文件目录概念，调试信息跟着最终 `.wasm` 所在目录走
+
+如果只记一个结论，可以记成：
+
+1. sourcemap: 看 `.wasm.map` 的本地目录，再看 `--source-map-base` 的 URL 归属。
+2. dwarf: 看最终 `.wasm` 落在哪，通常没有单独的 `.wasm.map` 目录。
+
+### 11.4 从变量到最终产物的简图
+
+```mermaid
+flowchart TD
+  A[CMake cache variables] --> B[WasmBuild.cmake]
+  A --> C[WasmSourceMap.cmake]
+
+  A1[WASM_DEBUG_MODE] --> B
+  A2[CMAKE_SOURCE_DIR] --> B
+  A3[OUTPUT_DIRECTORY optional override] --> B
+  A4[target name] --> B
+
+  B --> D[Local output directory]
+  D --> E[target.js]
+  D --> F[target.wasm]
+  D --> G[target.wasm.map in sourcemap mode]
+
+  A5[WASM_SOURCE_MAP_ROOT] --> C
+  A6[WASM_ENV] --> C
+  A7[WASM_PROJECT] --> C
+  A8[WASM_SOURCE_MAP_TARGET_SEGMENT] --> C
+  A9[WASM_BUILD_ID] --> C
+
+  C --> H[source-map-base URL]
+  H --> I[DevTools source ownership]
+
+  J[dwarf mode] --> K[DWARF info embedded in target.wasm]
+```
+
+这张图对应的实际理解是：
+
+1. `WasmBuild.cmake` 负责决定本地 `.js/.wasm/.wasm.map` 生成到哪里。
+2. `WasmSourceMap.cmake` 负责决定浏览器如何理解 sourcemap 的 URL 基准。
+3. `dwarf` 模式不依赖独立 `.wasm.map` 文件，而是把调试信息跟着最终 `.wasm` 走。
+
+## 12. 当前仓库中的参考位置
 
 可以直接参考以下文件：
 
