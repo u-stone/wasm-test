@@ -17,10 +17,12 @@ python .\server.py
 - 调试信息在 wasm 内（或相关符号信息中）。
 - 更接近原生 C/C++ 调试体验。
 - 常用于现代浏览器 wasm 原生调试能力。
+- 通常没有独立的 `.wasm.map` 文件，调试信息跟着最终 `.wasm` 走。
 
 ### Source Map (`debug=sourcemap`)
 - 依赖 map 文件把编译后位置映射回源码。
 - 对 JS glue 与源码映射更直观。
+- 通常会生成独立的 `.wasm.map` 文件，浏览器还需要按 URL 去获取这份 map 及其引用的源码。
 
 ### release (`debug=release`)
 - 用于对照性能与行为，不适合深度源码调试。
@@ -77,6 +79,16 @@ python .\server.py
 - compare 面板中的状态和耗时变化
 
 ## 7. 常见调试问题
+### 静态库里某些代码为什么调不到
+- 典型场景：`libA`、`libB`、`libC` 先分别编译，最后再一起链接成浏览器加载的最终 Wasm 目标。
+- 关键结论：
+  - 静态库阶段看的是“编译时有没有带 `-g`”。
+  - 最终 Wasm 链接阶段看的是“是否给最终目标添加 `-gsource-map`”。
+- 这意味着：
+  - 如果 `libA` 编译时没有 `-g`，即使最终目标用了 `-gsource-map`，通常也不能在 DevTools 里稳定做 `libA` 的源码级调试。
+  - 如果 `libA` 编译时带了 `-g`，但它自己没有单独使用 `-gsource-map`，通常仍然没问题；只要最终 Wasm 目标在链接时用了 `-gsource-map`，浏览器就有机会调试到 `libA` 的源码。
+  - `-gsource-map` 的核心作用点在最终 Wasm 目标，而不是静态库本身。
+
 ### 看不到 C++ 源映射
 - 先确认当前是 `debug=dwarf` 或 `debug=sourcemap`。
 - 确认对应 `output/<mode>/` 文件已生成。
@@ -122,6 +134,21 @@ python .\server.py
   - 打开 `demos/05-cmake-emcmake/output/sourcemap/*.wasm.map`。
   - 检查 `sources` 字段里是否出现 `src/app/*.cc`、`src/domain/*.cc`、`src/core/*.cc`、`src/platform/*.cc`。
   - 如果只有系统库源码而没有业务源码，通常就是“编译单元未统一带调试信息”的问题。
+
+### 为什么调试 C++ 代码还要启动 HTTP 服务
+- HTTP 服务不只是为了“能在浏览器里打开页面”。
+- 对 `sourcemap` 模式来说，它还直接承担调试资源分发职责：
+  - 提供 `.js`
+  - 提供 `.wasm`
+  - 提供 `.wasm.map`
+  - 提供 `.wasm.map` 中引用到的源码路径
+  - 提供与 `--source-map-base` 一致的 URL 结构
+- 对 `dwarf` 模式来说，它不需要像 sourcemap 那样额外分发 `.wasm.map`，但仍然需要：
+  - 正常提供页面和 `.wasm`
+  - 在多线程场景下提供 COOP/COEP 响应头，否则 pthreads / SharedArrayBuffer 场景本身就跑不起来
+- 所以更准确地说：
+  - `sourcemap` 模式下，HTTP 服务既服务页面，也服务调试资源。
+  - `dwarf` 模式下，HTTP 服务主要服务页面和 `.wasm` 本体，调试信息跟着 `.wasm` 走。
 
 ## 8. Worker DevTools 上下文切换（看 worker console）
 1. 打开 DevTools（F12）。

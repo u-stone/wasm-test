@@ -475,7 +475,59 @@ http://localhost:8000/demos/05-cmake-emcmake/output/sourcemap/
 1. sourcemap: 看 `.wasm.map` 的本地目录，再看 `--source-map-base` 的 URL 归属。
 2. dwarf: 看最终 `.wasm` 落在哪，通常没有单独的 `.wasm.map` 目录。
 
-### 11.4 从变量到最终产物的简图
+### 11.4 多静态库合并到最终 Wasm 时，调试信息怎么保留
+
+这是大型工程最容易踩坑的点之一。
+
+典型链路是：
+
+1. `libA`
+2. `libB`
+3. `libC`
+4. 最终一起链接成浏览器真正加载的 Wasm 目标
+
+关键结论是：
+
+1. 静态库阶段决定“对象文件里有没有调试信息”。
+2. 最终链接阶段决定“是否把这些调试信息整理成可供浏览器消费的 sourcemap”。
+
+因此：
+
+1. 如果 `libA` 编译时没有带 `-g`，那么即使最终目标链接时用了 `-gsource-map`，通常也不能完整调试到 `libA` 的源码。
+2. 如果 `libA` 编译时带了 `-g`，但它自己没有单独用 `-gsource-map`，通常没有问题，因为静态库本身不是浏览器最终加载的 target。
+3. `-gsource-map` 最关键的施加位置是最终 Wasm 目标，而不是各个中间静态库。
+
+这也是当前模板选择“库 target 统一应用编译调试参数，最终 target 再统一处理 sourcemap”的原因。
+
+### 11.5 libA/libB/libC 到 libN/wasm.map/DevTools 的链路图
+
+```mermaid
+flowchart LR
+   A[libA sources] --> A1[libA objects]
+   B[libB sources] --> B1[libB objects]
+   C[libC sources] --> C1[libC objects]
+
+   A1 --> N[final wasm link target]
+   B1 --> N
+   C1 --> N
+
+   N --> W[target.wasm]
+   N --> M[target.wasm.map in sourcemap mode]
+
+   M --> D[DevTools source mapping]
+   W --> D2[DWARF debugging in wasm]
+
+   G1[-g on libA/libB/libC compile] -. decides debug info availability .-> A1
+   G2[-gsource-map on final wasm link] -. decides map generation .-> M
+```
+
+这张图对应的实际理解是：
+
+1. `-g` 要尽可能在静态库编译阶段就带上，否则最终 map 里可能缺源码。
+2. `-gsource-map` 主要放在最终 Wasm 目标的链接阶段。
+3. 浏览器最终面对的是“最终 Wasm 目标”和它的 `.wasm.map`，不会单独去消费某个静态库自己的 map 文件。
+
+### 11.6 从变量到最终产物的简图
 
 ```mermaid
 flowchart TD
