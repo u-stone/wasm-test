@@ -45,6 +45,8 @@ include(WasmBuild)
 
 initialize_wasm_build_defaults(
    DEBUG_MODE "sourcemap"
+   DEBUG_INFO "auto"
+   DEBUG_LEVEL "default"
    SOURCE_MAP_ROOT "http://localhost:8000"
    ENV "demos"
    PROJECT_SEGMENT "05-cmake-emcmake"
@@ -57,6 +59,8 @@ add_subdirectory(src)
 
 configure_wasm_build(
   cmake_demo
+   DEBUG_INFO "on"
+   DEBUG_LEVEL "2"
   EXPORTED_FUNCTIONS "[\"_run_cmake_demo\"]"
   EXPORTED_RUNTIME_METHODS "[\"ccall\"]"
 )
@@ -95,6 +99,22 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 2. `dwarf` -> `-O0 -g`
 3. `sourcemap` -> `-O1 -g`
 
+它现在还支持以下控制项：
+
+1. `DEBUG_INFO`
+   - `auto`
+   - `on`
+   - `off`
+2. `DEBUG_LEVEL`
+   - `default`
+   - `0`
+   - `1`
+   - `2`
+   - `3`
+   - `line-tables-only`
+3. `EXTRA_FLAGS`
+   - 用于按 target 追加额外编译选项
+
 设计原因：
 
 1. `sourcemap` 模式下 map 在链接阶段生成，但对象文件仍然需要调试信息。
@@ -114,6 +134,7 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 
 1. `sourcemap` 模式下，这里故意不直接返回 `-gsource-map`。
 2. `-gsource-map` 由 `WasmSourceMap.cmake` 在最终 target 层面注入。
+3. `DEBUG_INFO` 为 `off` 时，这里不会再为非 sourcemap 模式追加 `-g` 相关链接参数。
 
 ### 4.3 `apply_wasm_compile_options(target)`
 
@@ -124,6 +145,20 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 1. `STATIC` 库
 2. `OBJECT` 库
 3. 需要参与最终 Wasm 链接且必须保留调试信息的其他 target
+
+支持的可选参数：
+
+1. `DEBUG_INFO`
+2. `DEBUG_LEVEL`
+3. `EXTRA_FLAGS`
+
+示例：
+
+```cmake
+apply_wasm_compile_options(cmake_core DEBUG_INFO on DEBUG_LEVEL 1)
+apply_wasm_compile_options(cmake_domain DEBUG_INFO off)
+apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
+```
 
 不建议把它当作“全局目录级配置”的替代品。这个函数的目的就是显式、精准地控制 target。
 
@@ -156,6 +191,17 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
    - 透传为 `-sEXPORTED_RUNTIME_METHODS=...`。
    - 例如 `["ccall"]`。
 
+6. `DEBUG_INFO`
+   - 覆盖当前 target 的调试信息开关。
+   - 可选：`auto`、`on`、`off`。
+
+7. `DEBUG_LEVEL`
+   - 覆盖当前 target 的调试信息级别。
+   - 可选：`default`、`0`、`1`、`2`、`3`、`line-tables-only`。
+
+8. `EXTRA_COMPILE_FLAGS`
+   - 为当前 target 追加额外编译参数。
+
 它会完成以下事情：
 
 1. 检查 target 是否存在。
@@ -165,6 +211,17 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 5. 按需添加导出函数与 runtime methods。
 6. 在 `sourcemap` 模式下调用 `configure_wasm_sourcemap(...)`。
 7. 在 configure 阶段打印关键产物位置。
+
+额外控制语义：
+
+1. `DEBUG_INFO=auto`
+   - `release` 默认不生成调试信息
+   - `dwarf` / `sourcemap` 默认生成调试信息
+2. `DEBUG_INFO=on`
+   - 强制为当前 target 打开调试信息
+3. `DEBUG_INFO=off`
+   - 强制为当前 target 关闭调试信息
+   - 如果当前模式是 `sourcemap`，则不会再为这个 target 生成 source map
 
 当前会打印：
 
@@ -196,17 +253,20 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 支持的参数：
 
 1. `DEBUG_MODE`
-2. `SOURCE_MAP_ROOT`
-3. `ENV`
-4. `PROJECT_SEGMENT`
-5. `BUILD_ID`
-6. `TARGET_SEGMENT`
+2. `DEBUG_INFO`
+3. `DEBUG_LEVEL`
+4. `SOURCE_MAP_ROOT`
+5. `ENV`
+6. `PROJECT_SEGMENT`
+7. `BUILD_ID`
+8. `TARGET_SEGMENT`
 
 设计原则是：
 
 1. 提供模块级默认值，降低顶层 `CMakeLists.txt` 对底层变量名的直接依赖。
 2. 继续保留 `-DWASM_DEBUG_MODE=...`、`-DWASM_SOURCE_MAP_ROOT=...` 这类外部覆盖能力。
 3. 对真实项目来说，顶层通常只需要在这里声明少量项目特有的默认值。
+4. 允许把“是否生成调试信息”和“生成到什么级别”作为全局默认值统一配置。
 
 ## 5. `WasmSourceMap.cmake` API 说明
 
