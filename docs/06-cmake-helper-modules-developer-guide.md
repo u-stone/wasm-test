@@ -57,6 +57,8 @@ initialize_wasm_build_defaults(
 
 create_wasm_debug_interface(cmake_project_debug_info)
 
+create_wasm_debug_interface(cmake_balanced_debug_info PRESET balanced)
+
 print_wasm_build_summary()
 add_subdirectory(src)
 
@@ -179,11 +181,21 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 2. `DEBUG_LEVEL`
 3. `EXTRA_FLAGS`
 4. `APPLY_LINK_OPTIONS`
+5. `PRESET`
+
+支持的预设：
+
+1. `custom`
+2. `minimal`
+3. `balanced`
+4. `full`
+5. `disabled`
 
 默认行为：
 
 1. 默认只挂编译参数。
 2. 如果显式传 `APPLY_LINK_OPTIONS`，也会把对应链接参数挂到这个 `INTERFACE` target 上。
+3. 如果传了 `PRESET`，会先应用预设，再允许 `DEBUG_INFO` / `DEBUG_LEVEL` 显式覆盖。
 
 最常见的用法是把它作为“很多静态库共享的一组调试编译选项”。
 
@@ -200,6 +212,7 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 
 ```cmake
 create_wasm_debug_interface(cmake_project_debug_info DEBUG_INFO auto DEBUG_LEVEL 2)
+create_wasm_debug_interface(cmake_full_debug_info PRESET full)
 
 attach_wasm_debug_interface(
    cmake_project_debug_info
@@ -276,6 +289,7 @@ attach_wasm_debug_interface(
    - 只有 `WASM_DEBUG_MODE=sourcemap` 时默认开启 sourcemap
 5. `SOURCE_MAP=on`
    - 在 `sourcemap` 模式下强制开启 sourcemap
+   - 如果当前不是 `sourcemap` 模式，会打印显式 warning，并保持 source map 关闭
 6. `SOURCE_MAP=off`
    - 即使当前是 `sourcemap` 模式，也不为这个 target 生成 `.wasm.map`
 

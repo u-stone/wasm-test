@@ -105,6 +105,7 @@ function(resolve_wasm_source_map_enabled out_var)
     if(WASM_DEBUG_MODE STREQUAL "sourcemap")
       set(source_map_enabled TRUE)
     else()
+      message(WARNING "WASM_SOURCE_MAP is 'on' but WASM_DEBUG_MODE='${WASM_DEBUG_MODE}'. Sourcemaps are only generated in 'sourcemap' mode, so source map output remains disabled.")
       set(source_map_enabled FALSE)
     endif()
   elseif(source_map_mode STREQUAL "off")
@@ -114,6 +115,40 @@ function(resolve_wasm_source_map_enabled out_var)
   endif()
 
   set(${out_var} ${source_map_enabled} PARENT_SCOPE)
+endfunction()
+
+function(resolve_wasm_debug_preset out_debug_info_var out_debug_level_var)
+  set(options)
+  set(oneValueArgs PRESET)
+  cmake_parse_arguments(WASM_PRESET "${options}" "${oneValueArgs}" "" ${ARGN})
+
+  set(preset "custom")
+  if(NOT "${WASM_PRESET_PRESET}" STREQUAL "")
+    set(preset "${WASM_PRESET_PRESET}")
+  endif()
+
+  string(TOLOWER "${preset}" preset)
+  if(preset STREQUAL "custom")
+    set(debug_info "")
+    set(debug_level "")
+  elseif(preset STREQUAL "minimal")
+    set(debug_info on)
+    set(debug_level line-tables-only)
+  elseif(preset STREQUAL "full")
+    set(debug_info on)
+    set(debug_level 3)
+  elseif(preset STREQUAL "balanced")
+    set(debug_info on)
+    set(debug_level 2)
+  elseif(preset STREQUAL "disabled")
+    set(debug_info off)
+    set(debug_level default)
+  else()
+    message(FATAL_ERROR "Unsupported debug preset: ${preset}. Expected custom, minimal, balanced, full, or disabled.")
+  endif()
+
+  set(${out_debug_info_var} "${debug_info}" PARENT_SCOPE)
+  set(${out_debug_level_var} "${debug_level}" PARENT_SCOPE)
 endfunction()
 
 function(get_wasm_debug_flag out_var)
@@ -219,7 +254,7 @@ endfunction()
 
 function(create_wasm_debug_interface interface_target)
   set(options APPLY_LINK_OPTIONS)
-  set(oneValueArgs DEBUG_INFO DEBUG_LEVEL)
+  set(oneValueArgs PRESET DEBUG_INFO DEBUG_LEVEL)
   set(multiValueArgs EXTRA_FLAGS)
   cmake_parse_arguments(WASM_DEBUG_INTERFACE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -227,12 +262,28 @@ function(create_wasm_debug_interface interface_target)
     message(FATAL_ERROR "create_wasm_debug_interface: target '${interface_target}' already exists")
   endif()
 
+  resolve_wasm_debug_preset(
+    preset_debug_info
+    preset_debug_level
+    PRESET "${WASM_DEBUG_INTERFACE_PRESET}"
+  )
+
+  set(effective_debug_info "${WASM_DEBUG_INTERFACE_DEBUG_INFO}")
+  if("${effective_debug_info}" STREQUAL "" AND NOT "${preset_debug_info}" STREQUAL "")
+    set(effective_debug_info "${preset_debug_info}")
+  endif()
+
+  set(effective_debug_level "${WASM_DEBUG_INTERFACE_DEBUG_LEVEL}")
+  if("${effective_debug_level}" STREQUAL "" AND NOT "${preset_debug_level}" STREQUAL "")
+    set(effective_debug_level "${preset_debug_level}")
+  endif()
+
   add_library(${interface_target} INTERFACE)
 
   get_wasm_compile_flags(
     interface_compile_flags
-    DEBUG_INFO "${WASM_DEBUG_INTERFACE_DEBUG_INFO}"
-    DEBUG_LEVEL "${WASM_DEBUG_INTERFACE_DEBUG_LEVEL}"
+    DEBUG_INFO "${effective_debug_info}"
+    DEBUG_LEVEL "${effective_debug_level}"
     EXTRA_FLAGS ${WASM_DEBUG_INTERFACE_EXTRA_FLAGS}
   )
   target_compile_options(${interface_target} INTERFACE ${interface_compile_flags})
@@ -240,8 +291,8 @@ function(create_wasm_debug_interface interface_target)
   if(WASM_DEBUG_INTERFACE_APPLY_LINK_OPTIONS)
     get_wasm_link_flags(
       interface_link_flags
-      DEBUG_INFO "${WASM_DEBUG_INTERFACE_DEBUG_INFO}"
-      DEBUG_LEVEL "${WASM_DEBUG_INTERFACE_DEBUG_LEVEL}"
+      DEBUG_INFO "${effective_debug_info}"
+      DEBUG_LEVEL "${effective_debug_level}"
     )
     target_link_options(${interface_target} INTERFACE ${interface_link_flags})
   endif()
