@@ -47,12 +47,15 @@ initialize_wasm_build_defaults(
    DEBUG_MODE "sourcemap"
    DEBUG_INFO "auto"
    DEBUG_LEVEL "default"
+   SOURCE_MAP "auto"
    SOURCE_MAP_ROOT "http://localhost:8000"
    ENV "demos"
    PROJECT_SEGMENT "05-cmake-emcmake"
    BUILD_ID "sourcemap"
    TARGET_SEGMENT "output"
 )
+
+create_wasm_debug_interface(cmake_project_debug_info)
 
 print_wasm_build_summary()
 add_subdirectory(src)
@@ -71,11 +74,14 @@ configure_wasm_build(
 ```cmake
 add_library(cmake_core STATIC core/accumulator.cc)
 target_include_directories(cmake_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-apply_wasm_compile_options(cmake_core)
 
 add_library(cmake_domain STATIC domain/simulation.cc)
 target_link_libraries(cmake_domain PUBLIC cmake_core)
-apply_wasm_compile_options(cmake_domain)
+
+attach_wasm_debug_interface(
+   cmake_project_debug_info
+   TARGETS cmake_core cmake_domain
+)
 
 add_executable(cmake_demo app/main.cc)
 target_link_libraries(cmake_demo PRIVATE cmake_domain)
@@ -86,6 +92,7 @@ target_link_libraries(cmake_demo PRIVATE cmake_domain)
 1. 静态库 target 用 `apply_wasm_compile_options(target)`。
 2. 最终 Wasm 可执行 target 用 `configure_wasm_build(target ...)`。
 3. 顶层默认变量用 `initialize_wasm_build_defaults(...)` 初始化，而不是在 `CMakeLists.txt` 中散落多组 `set(... CACHE ...)`。
+4. 当库 target 很多时，用 `create_wasm_debug_interface(...)` + `attach_wasm_debug_interface(...)` 批量挂调试编译参数。
 
 ## 4. `WasmBuild.cmake` API 说明
 
@@ -162,7 +169,45 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 
 不建议把它当作“全局目录级配置”的替代品。这个函数的目的就是显式、精准地控制 target。
 
-### 4.4 `configure_wasm_build(target ...)`
+### 4.4 `create_wasm_debug_interface(interface_target ...)`
+
+这个函数会创建一个 `INTERFACE` 配置 target，用于把调试相关编译参数批量挂到很多库上。
+
+支持的参数：
+
+1. `DEBUG_INFO`
+2. `DEBUG_LEVEL`
+3. `EXTRA_FLAGS`
+4. `APPLY_LINK_OPTIONS`
+
+默认行为：
+
+1. 默认只挂编译参数。
+2. 如果显式传 `APPLY_LINK_OPTIONS`，也会把对应链接参数挂到这个 `INTERFACE` target 上。
+
+最常见的用法是把它作为“很多静态库共享的一组调试编译选项”。
+
+### 4.5 `attach_wasm_debug_interface(interface_target ...)`
+
+这个函数用于把一个已有的 `INTERFACE` 调试 target 批量挂到多个目标上。
+
+支持的参数：
+
+1. `TARGETS`
+2. `VISIBILITY`
+
+示例：
+
+```cmake
+create_wasm_debug_interface(cmake_project_debug_info DEBUG_INFO auto DEBUG_LEVEL 2)
+
+attach_wasm_debug_interface(
+   cmake_project_debug_info
+   TARGETS cmake_core cmake_platform cmake_domain
+)
+```
+
+### 4.6 `configure_wasm_build(target ...)`
 
 这是最终 Wasm target 的统一入口。
 
@@ -202,6 +247,10 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 8. `EXTRA_COMPILE_FLAGS`
    - 为当前 target 追加额外编译参数。
 
+9. `SOURCE_MAP`
+   - 覆盖当前 target 的 sourcemap 开关。
+   - 可选：`auto`、`on`、`off`。
+
 它会完成以下事情：
 
 1. 检查 target 是否存在。
@@ -221,7 +270,14 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
    - 强制为当前 target 打开调试信息
 3. `DEBUG_INFO=off`
    - 强制为当前 target 关闭调试信息
-   - 如果当前模式是 `sourcemap`，则不会再为这个 target 生成 source map
+   - 但这不再自动等于“关闭 sourcemap”，两者已经解耦
+
+4. `SOURCE_MAP=auto`
+   - 只有 `WASM_DEBUG_MODE=sourcemap` 时默认开启 sourcemap
+5. `SOURCE_MAP=on`
+   - 在 `sourcemap` 模式下强制开启 sourcemap
+6. `SOURCE_MAP=off`
+   - 即使当前是 `sourcemap` 模式，也不为这个 target 生成 `.wasm.map`
 
 当前会打印：
 
@@ -235,18 +291,21 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 1. 本地磁盘看 `WASM_SOURCE_MAP_FILE(target)`。
 2. 浏览器 URL 归属看 `WASM_SOURCE_MAP_URL_BASE(target)`。
 
-### 4.5 `print_wasm_build_summary()`
+### 4.7 `print_wasm_build_summary()`
 
 在配置阶段打印当前构建摘要，方便快速确认模式是否正确。
 
 推荐在顶层 `CMakeLists.txt` 中尽早调用一次，这样能在 `cmake -S . -B ...` 阶段直接看到：
 
 1. `WASM_DEBUG_MODE`
-2. 编译参数
-3. 链接参数
-4. sourcemap 相关变量
+2. `WASM_DEBUG_INFO`
+3. `WASM_DEBUG_INFO_LEVEL`
+4. `WASM_SOURCE_MAP`
+5. 编译参数
+6. 链接参数
+7. sourcemap 相关变量
 
-### 4.6 `initialize_wasm_build_defaults(...)`
+### 4.8 `initialize_wasm_build_defaults(...)`
 
 这个函数用于把原本散落在顶层 `CMakeLists.txt` 里的默认变量初始化收口到模块内部。
 
@@ -255,11 +314,12 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 1. `DEBUG_MODE`
 2. `DEBUG_INFO`
 3. `DEBUG_LEVEL`
-4. `SOURCE_MAP_ROOT`
-5. `ENV`
-6. `PROJECT_SEGMENT`
-7. `BUILD_ID`
-8. `TARGET_SEGMENT`
+4. `SOURCE_MAP`
+5. `SOURCE_MAP_ROOT`
+6. `ENV`
+7. `PROJECT_SEGMENT`
+8. `BUILD_ID`
+9. `TARGET_SEGMENT`
 
 设计原则是：
 
@@ -267,6 +327,7 @@ apply_wasm_compile_options(cmake_platform EXTRA_FLAGS -fno-inline)
 2. 继续保留 `-DWASM_DEBUG_MODE=...`、`-DWASM_SOURCE_MAP_ROOT=...` 这类外部覆盖能力。
 3. 对真实项目来说，顶层通常只需要在这里声明少量项目特有的默认值。
 4. 允许把“是否生成调试信息”和“生成到什么级别”作为全局默认值统一配置。
+5. 允许把“是否生成 sourcemap”作为独立于调试信息的单独控制线。
 
 ## 5. `WasmSourceMap.cmake` API 说明
 

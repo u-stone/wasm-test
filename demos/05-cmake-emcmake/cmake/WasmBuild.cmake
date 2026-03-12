@@ -5,7 +5,7 @@ include(WasmSourceMap)
 
 function(initialize_wasm_build_defaults)
   set(options)
-  set(oneValueArgs DEBUG_MODE DEBUG_INFO DEBUG_LEVEL SOURCE_MAP_ROOT ENV PROJECT_SEGMENT BUILD_ID TARGET_SEGMENT)
+  set(oneValueArgs DEBUG_MODE DEBUG_INFO DEBUG_LEVEL SOURCE_MAP SOURCE_MAP_ROOT ENV PROJECT_SEGMENT BUILD_ID TARGET_SEGMENT)
   cmake_parse_arguments(WASM_BUILD_INIT "${options}" "${oneValueArgs}" "" ${ARGN})
 
   set(default_debug_mode "release")
@@ -36,6 +36,16 @@ function(initialize_wasm_build_defaults)
   set_property(CACHE WASM_DEBUG_INFO PROPERTY STRINGS auto on off)
   set(WASM_DEBUG_INFO_LEVEL "${default_debug_level}" CACHE STRING "Debug info level: default, 0, 1, 2, 3, line-tables-only")
   set_property(CACHE WASM_DEBUG_INFO_LEVEL PROPERTY STRINGS default 0 1 2 3 line-tables-only)
+
+  set(default_source_map "auto")
+  if(NOT "${WASM_BUILD_INIT_SOURCE_MAP}" STREQUAL "")
+    set(default_source_map "${WASM_BUILD_INIT_SOURCE_MAP}")
+  elseif(DEFINED WASM_SOURCE_MAP AND NOT "${WASM_SOURCE_MAP}" STREQUAL "")
+    set(default_source_map "${WASM_SOURCE_MAP}")
+  endif()
+
+  set(WASM_SOURCE_MAP "${default_source_map}" CACHE STRING "Whether to generate sourcemaps for final wasm targets: auto, on, off")
+  set_property(CACHE WASM_SOURCE_MAP PROPERTY STRINGS auto on off)
 
   initialize_wasm_sourcemap_defaults(
     SOURCE_MAP_ROOT "${WASM_BUILD_INIT_SOURCE_MAP_ROOT}"
@@ -72,6 +82,38 @@ function(resolve_wasm_debug_info_enabled out_var)
   endif()
 
   set(${out_var} ${debug_info_enabled} PARENT_SCOPE)
+endfunction()
+
+function(resolve_wasm_source_map_enabled out_var)
+  set(options)
+  set(oneValueArgs SOURCE_MAP)
+  cmake_parse_arguments(WASM_SOURCE_MAP_STATE "${options}" "${oneValueArgs}" "" ${ARGN})
+
+  set(source_map_mode "${WASM_SOURCE_MAP}")
+  if(NOT "${WASM_SOURCE_MAP_STATE_SOURCE_MAP}" STREQUAL "")
+    set(source_map_mode "${WASM_SOURCE_MAP_STATE_SOURCE_MAP}")
+  endif()
+
+  string(TOLOWER "${source_map_mode}" source_map_mode)
+  if(source_map_mode STREQUAL "auto")
+    if(WASM_DEBUG_MODE STREQUAL "sourcemap")
+      set(source_map_enabled TRUE)
+    else()
+      set(source_map_enabled FALSE)
+    endif()
+  elseif(source_map_mode STREQUAL "on")
+    if(WASM_DEBUG_MODE STREQUAL "sourcemap")
+      set(source_map_enabled TRUE)
+    else()
+      set(source_map_enabled FALSE)
+    endif()
+  elseif(source_map_mode STREQUAL "off")
+    set(source_map_enabled FALSE)
+  else()
+    message(FATAL_ERROR "Unsupported source map mode: ${source_map_mode}. Expected auto, on, or off.")
+  endif()
+
+  set(${out_var} ${source_map_enabled} PARENT_SCOPE)
 endfunction()
 
 function(get_wasm_debug_flag out_var)
@@ -175,9 +217,66 @@ function(apply_wasm_compile_options target)
   target_compile_options(${target} PRIVATE ${compile_flags})
 endfunction()
 
+function(create_wasm_debug_interface interface_target)
+  set(options APPLY_LINK_OPTIONS)
+  set(oneValueArgs DEBUG_INFO DEBUG_LEVEL)
+  set(multiValueArgs EXTRA_FLAGS)
+  cmake_parse_arguments(WASM_DEBUG_INTERFACE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(TARGET ${interface_target})
+    message(FATAL_ERROR "create_wasm_debug_interface: target '${interface_target}' already exists")
+  endif()
+
+  add_library(${interface_target} INTERFACE)
+
+  get_wasm_compile_flags(
+    interface_compile_flags
+    DEBUG_INFO "${WASM_DEBUG_INTERFACE_DEBUG_INFO}"
+    DEBUG_LEVEL "${WASM_DEBUG_INTERFACE_DEBUG_LEVEL}"
+    EXTRA_FLAGS ${WASM_DEBUG_INTERFACE_EXTRA_FLAGS}
+  )
+  target_compile_options(${interface_target} INTERFACE ${interface_compile_flags})
+
+  if(WASM_DEBUG_INTERFACE_APPLY_LINK_OPTIONS)
+    get_wasm_link_flags(
+      interface_link_flags
+      DEBUG_INFO "${WASM_DEBUG_INTERFACE_DEBUG_INFO}"
+      DEBUG_LEVEL "${WASM_DEBUG_INTERFACE_DEBUG_LEVEL}"
+    )
+    target_link_options(${interface_target} INTERFACE ${interface_link_flags})
+  endif()
+endfunction()
+
+function(attach_wasm_debug_interface interface_target)
+  set(options)
+  set(oneValueArgs VISIBILITY)
+  set(multiValueArgs TARGETS)
+  cmake_parse_arguments(WASM_ATTACH "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(NOT TARGET ${interface_target})
+    message(FATAL_ERROR "attach_wasm_debug_interface: interface target '${interface_target}' does not exist")
+  endif()
+
+  set(visibility PRIVATE)
+  if(NOT "${WASM_ATTACH_VISIBILITY}" STREQUAL "")
+    string(TOUPPER "${WASM_ATTACH_VISIBILITY}" visibility)
+  endif()
+
+  if(NOT visibility MATCHES "^(PRIVATE|PUBLIC|INTERFACE)$")
+    message(FATAL_ERROR "attach_wasm_debug_interface: VISIBILITY must be PRIVATE, PUBLIC, or INTERFACE")
+  endif()
+
+  foreach(target IN LISTS WASM_ATTACH_TARGETS)
+    if(NOT TARGET ${target})
+      message(FATAL_ERROR "attach_wasm_debug_interface: target '${target}' does not exist")
+    endif()
+    target_link_libraries(${target} ${visibility} ${interface_target})
+  endforeach()
+endfunction()
+
 function(configure_wasm_build target)
   set(options)
-  set(oneValueArgs SOURCE_MAP_TARGET_SEGMENT EXPORTED_FUNCTIONS EXPORTED_RUNTIME_METHODS OUTPUT_DIRECTORY TARGET_SUFFIX DEBUG_INFO DEBUG_LEVEL)
+  set(oneValueArgs SOURCE_MAP SOURCE_MAP_TARGET_SEGMENT EXPORTED_FUNCTIONS EXPORTED_RUNTIME_METHODS OUTPUT_DIRECTORY TARGET_SUFFIX DEBUG_INFO DEBUG_LEVEL)
   set(multiValueArgs EXTRA_COMPILE_FLAGS)
   cmake_parse_arguments(WASM_BUILD "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -220,6 +319,7 @@ function(configure_wasm_build target)
   )
 
   resolve_wasm_debug_info_enabled(debug_info_enabled DEBUG_INFO "${WASM_BUILD_DEBUG_INFO}")
+  resolve_wasm_source_map_enabled(source_map_enabled SOURCE_MAP "${WASM_BUILD_SOURCE_MAP}")
 
   if(NOT "${WASM_BUILD_EXPORTED_FUNCTIONS}" STREQUAL "")
     list(APPEND link_flags "-sEXPORTED_FUNCTIONS=${WASM_BUILD_EXPORTED_FUNCTIONS}")
@@ -231,10 +331,13 @@ function(configure_wasm_build target)
 
   target_link_options(${target} PRIVATE ${link_flags})
 
-  if(debug_info_enabled AND NOT "${source_map_target_segment}" STREQUAL "")
+  if(source_map_enabled AND NOT "${source_map_target_segment}" STREQUAL "")
     configure_wasm_sourcemap(${target} "${source_map_target_segment}")
-  elseif(WASM_DEBUG_MODE STREQUAL "sourcemap" AND NOT debug_info_enabled)
-    message(STATUS "WASM source map disabled for ${target} because debug info generation is off")
+    if(NOT debug_info_enabled)
+      message(STATUS "WASM source map for ${target} is enabled, but compile debug info is off; source-level mapping quality may be limited")
+    endif()
+  elseif(WASM_DEBUG_MODE STREQUAL "sourcemap" AND NOT source_map_enabled)
+    message(STATUS "WASM source map disabled for ${target} because source map generation is off")
   endif()
 
   message(STATUS "WASM_OUTPUT_DIRECTORY(${target})=${output_directory}")
@@ -243,7 +346,7 @@ function(configure_wasm_build target)
   message(STATUS "WASM_JS_OUTPUT(${target})=${js_output_path}")
   message(STATUS "WASM_BINARY_OUTPUT(${target})=${wasm_output_path}")
 
-  if(WASM_DEBUG_MODE STREQUAL "sourcemap")
+  if(source_map_enabled)
     message(STATUS "WASM_SOURCE_MAP_TARGET_SEGMENT_EFFECTIVE(${target})=${source_map_target_segment}")
     set(map_output_path "${output_directory}/${target}.wasm.map")
     message(STATUS "WASM_SOURCE_MAP_FILE(${target})=${map_output_path}")
@@ -259,6 +362,7 @@ function(print_wasm_build_summary)
   message(STATUS "WASM_DEBUG_MODE=${WASM_DEBUG_MODE}")
   message(STATUS "WASM_DEBUG_INFO=${WASM_DEBUG_INFO}")
   message(STATUS "WASM_DEBUG_INFO_LEVEL=${WASM_DEBUG_INFO_LEVEL}")
+  message(STATUS "WASM_SOURCE_MAP=${WASM_SOURCE_MAP}")
   get_wasm_compile_flags(compile_flags)
   get_wasm_link_flags(link_flags)
   string(JOIN " " compile_flags_str ${compile_flags})

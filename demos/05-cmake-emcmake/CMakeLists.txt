@@ -14,6 +14,8 @@ initialize_wasm_build_defaults(
   TARGET_SEGMENT "output"
 )
 
+create_wasm_debug_interface(cmake_project_debug_info)
+
 print_wasm_build_summary()
 
 add_subdirectory(src)
